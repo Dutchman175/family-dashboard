@@ -1,0 +1,57 @@
+plugins {
+    id "com.android.application"
+}
+
+android {
+    namespace "com.dutchman175.familydashboard"
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.dutchman175.familydashboard"
+        minSdk 22
+        targetSdk 34
+        versionCode 1
+        versionName "1.0.0"
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    signingConfigs {
+        // Public sideload key. The password is not a secret: anyone can rebuild
+        // the same signed APK, which is what lets an update install over this one.
+        release {
+            storeFile rootProject.file("family-dashboard.keystore")
+            storePassword "familydashboard"
+            keyAlias "familydashboard"
+            keyPassword "familydashboard"
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+            minifyEnabled false
+            shrinkResources false
+        }
+    }
+
+    lint {
+        abortOnError true
+    }
+}
+
+tasks.configureEach { task ->
+    if (task.name == "assembleRelease") {
+        task.doLast {
+            def outDir = layout.buildDirectory.dir("outputs/apk/release").get().asFile
+            def built = new File(outDir, "app-release.apk")
+            def named = new File(outDir, "FamilyDashboard.apk")
+            if (built.exists()) {
+                built.renameTo(named)
+            }
+        }
+    }
+}

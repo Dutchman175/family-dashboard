@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Family Dashboard</string>
+    <string name="dream_name">Family Dashboard</string>
+    <string name="error_title">Can\'t reach the dashboard</string>
+    <string name="error_body">Check the Wi-Fi. This will keep trying.</string>
+    <string name="retry">Try again</string>
+</resources>
