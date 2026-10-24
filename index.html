@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0e131b">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<title>Family Dashboard</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="styles.css?v=1">
+</head>
+<body>
+<div id="stage" class="stage">
+  <div id="dashboard" class="dashboard">
+    <header class="panel panel-clock">
+      <div class="clock-row">
+        <p id="clock" class="clock">12:00</p>
+        <p id="ampm" class="ampm">PM</p>
+      </div>
+      <p id="date" class="date">Saturday, October 24</p>
+      <p id="zone" class="zone">Central Time</p>
+    </header>
+
+    <!--
+      Future panels (calendar, chores, countdowns, photos) go in .panel-row
+      as more <section class="panel"> blocks. They share the row equally.
+    -->
+    <div class="panel-row">
+      <section class="panel panel-weather" id="weather" aria-live="polite">
+        <div id="weather-status" class="weather-status">
+          <p id="weather-status-title" class="status-title">Loading weather</p>
+          <p id="weather-status-body" class="status-body">Checking the forecast for Lowell, Indiana.</p>
+        </div>
+        <div id="weather-body" class="weather-body">
+          <div id="weather-current" class="weather-current"></div>
+          <div id="weather-forecast" class="weather-forecast"></div>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+<noscript>
+  <p class="noscript">JavaScript is off, so the clock and weather cannot run.</p>
+</noscript>
+<script src="app.js?v=1"></script>
+</body>
+</html>
