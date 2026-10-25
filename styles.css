@@ -407,10 +407,10 @@ p {
 .photo-layer {
   display: none;
   position: absolute;
-  top: -54px;
-  left: -96px;
-  width: 1920px;
-  height: 1080px;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   overflow: hidden;
   z-index: 0;
 }
@@ -441,9 +441,9 @@ p {
 .photo-scrim {
   position: absolute;
   top: 0;
+  right: 0;
+  bottom: 0;
   left: 0;
-  width: 1920px;
-  height: 1080px;
   z-index: 1;
   background-image: linear-gradient(180deg, rgba(14, 19, 27, 0.84) 0%, rgba(14, 19, 27, 0.34) 36%, rgba(14, 19, 27, 0.5) 68%, rgba(14, 19, 27, 0.86) 100%);
 }
