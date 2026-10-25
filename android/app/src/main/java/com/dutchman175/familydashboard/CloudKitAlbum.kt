@@ -3,6 +3,7 @@ package com.dutchman175.familydashboard
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.URI
+import java.net.URL
 import java.net.URLEncoder
 
 /**
@@ -212,15 +213,20 @@ internal object CloudKitAlbum {
         if (url.isEmpty() || url == "null" || url.length > 4000) {
             return false
         }
-        val uri = try {
-            URI(url)
+        if (url.any { it.isISOControl() || it == ' ' || it == '\\' }) {
+            return false
+        }
+        // Apple's signed URLs contain braces. java.net.URI rejects those, so
+        // the parser here is URL, which still yields the host.
+        val parsed = try {
+            URL(url)
         } catch (thrown: Exception) {
             return false
         }
-        if (uri.scheme != "https" || uri.userInfo != null) {
+        if (parsed.protocol != "https" || parsed.userInfo != null) {
             return false
         }
-        val host = uri.host?.lowercase() ?: return false
+        val host = parsed.host?.lowercase() ?: return false
         return SharedStream.isCdnHost(host)
     }
 

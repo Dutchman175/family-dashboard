@@ -55,12 +55,22 @@ class PhotoAlbumRepository(context: Context) {
 
     fun applyIntent(intent: Intent?) {
         if (intent == null || !intent.hasExtra(PhotoAlbumUrl.EXTRA)) {
+            Log.i(TAG, "extra received=false")
             return
         }
-        when (val action = PhotoAlbumUrl.interpret(intent.getStringExtra(PhotoAlbumUrl.EXTRA))) {
-            PhotoAlbumUrl.Action.Clear -> clear()
-            PhotoAlbumUrl.Action.Ignore -> Unit
-            is PhotoAlbumUrl.Action.Save -> setToken(action.token, action.kind)
+        val raw = intent.getStringExtra(PhotoAlbumUrl.EXTRA)
+        when (val action = PhotoAlbumUrl.interpret(raw)) {
+            PhotoAlbumUrl.Action.Clear -> {
+                Log.i(TAG, "extra received=true action=clear")
+                clear()
+            }
+            PhotoAlbumUrl.Action.Ignore -> {
+                Log.i(TAG, "extra received=true action=ignore len=${raw?.length ?: 0}")
+            }
+            is PhotoAlbumUrl.Action.Save -> {
+                Log.i(TAG, "extra received=true action=save kind=${action.kind.name} len=${action.token.length}")
+                setToken(action.token, action.kind)
+            }
         }
         intent.removeExtra(PhotoAlbumUrl.EXTRA)
     }
@@ -97,6 +107,7 @@ class PhotoAlbumRepository(context: Context) {
         val same = token == prefs.getString(KEY_TOKEN, null) &&
             kind.name == prefs.getString(KEY_KIND, PhotoAlbumUrl.Kind.LEGACY.name)
         prefs.edit().putString(KEY_TOKEN, token).putString(KEY_KIND, kind.name).commit()
+        Log.i(TAG, "saved kind=${kind.name} len=${token.length}")
         notifyListeners()
         scheduler.execute {
             if (!same) {
@@ -118,7 +129,7 @@ class PhotoAlbumRepository(context: Context) {
         try {
             fetchOnce(gen)
         } catch (thrown: Throwable) {
-            Log.w(TAG, "photo album fetch failed")
+            Log.w(TAG, "fetch failed ${thrown.javaClass.simpleName}")
             if (gen == generation) {
                 notifyListeners()
             }
@@ -127,7 +138,9 @@ class PhotoAlbumRepository(context: Context) {
 
     private fun fetchOnce(gen: Int) {
         val token = prefs.getString(KEY_TOKEN, null)
+        val kindName = prefs.getString(KEY_KIND, PhotoAlbumUrl.Kind.LEGACY.name)
         if (token.isNullOrEmpty() || !PhotoAlbumUrl.isToken(token)) {
+            Log.i(TAG, "fetch start configured=false")
             if (gen != generation) {
                 return
             }
@@ -138,10 +151,11 @@ class PhotoAlbumRepository(context: Context) {
             notifyListeners()
             return
         }
-        val cloudKit = prefs.getString(KEY_KIND, PhotoAlbumUrl.Kind.LEGACY.name) ==
-            PhotoAlbumUrl.Kind.CLOUDKIT.name
+        Log.i(TAG, "fetch start configured=true kind=$kindName")
+        val cloudKit = kindName == PhotoAlbumUrl.Kind.CLOUDKIT.name
         val page = if (cloudKit) null else loadPage(token)
         val photos = if (cloudKit) loadCloudKit(token) else page!!.photos
+        Log.i(TAG, "photos listed=${photos.size}")
         if (gen != generation) {
             return
         }
@@ -166,6 +180,7 @@ class PhotoAlbumRepository(context: Context) {
         if (gen != generation) {
             return
         }
+        Log.i(TAG, "cached=${jpegCount()} kept=${keep.size}")
         notifyListeners()
     }
 
@@ -255,13 +270,15 @@ class PhotoAlbumRepository(context: Context) {
             connection.setRequestProperty("Content-Type", "text/plain")
             connection.setRequestProperty("Accept", "application/json")
             connection.setRequestProperty("Origin", "https://photos.icloud.com")
-            connection.setRequestProperty("User-Agent", "FamilyDashboard/1.2")
+            connection.setRequestProperty("User-Agent", "FamilyDashboard/1.2.1")
             connection.outputStream.use { it.write(json.toByteArray(Charsets.UTF_8)) }
             val code = connection.responseCode
+            Log.i(TAG, "http POST host=$host status=$code")
             val stream = openBody(connection, code)
             val body = if (stream == null) "" else readLimited(stream, MAX_META_BYTES)
             return Reply(code, body)
         } catch (thrown: IOException) {
+            Log.w(TAG, "http POST host=$host failed ${thrown.javaClass.simpleName}")
             throw IOException("photo fetch failed")
         } finally {
             connection.disconnect()
@@ -327,13 +344,15 @@ class PhotoAlbumRepository(context: Context) {
             connection.doOutput = true
             connection.setRequestProperty("Content-Type", "application/json")
             connection.setRequestProperty("Accept", "application/json")
-            connection.setRequestProperty("User-Agent", "FamilyDashboard/1.2")
+            connection.setRequestProperty("User-Agent", "FamilyDashboard/1.2.1")
             connection.outputStream.use { it.write(json.toByteArray(Charsets.UTF_8)) }
             val code = connection.responseCode
+            Log.i(TAG, "http POST host=$host status=$code")
             val stream = openBody(connection, code)
             val body = if (stream == null) "" else readLimited(stream, MAX_META_BYTES)
             return Reply(code, body)
         } catch (thrown: IOException) {
+            Log.w(TAG, "http POST host=$host failed ${thrown.javaClass.simpleName}")
             throw IOException("photo fetch failed")
         } finally {
             connection.disconnect()
@@ -358,10 +377,12 @@ class PhotoAlbumRepository(context: Context) {
         val url = try {
             URL(urlString)
         } catch (thrown: Exception) {
+            Log.i(TAG, "download skip reason=bad-url")
             return
         }
         val host = url.host?.lowercase() ?: return
         if (url.protocol != "https" || !SharedStream.isCdnHost(host)) {
+            Log.i(TAG, "download skip reason=host")
             return
         }
         val connection = url.openConnection() as HttpURLConnection
@@ -371,8 +392,9 @@ class PhotoAlbumRepository(context: Context) {
             connection.connectTimeout = 20_000
             connection.readTimeout = 30_000
             connection.setRequestProperty("Accept", "image/jpeg")
-            connection.setRequestProperty("User-Agent", "FamilyDashboard/1.2")
+            connection.setRequestProperty("User-Agent", "FamilyDashboard/1.2.1")
             val code = connection.responseCode
+            Log.i(TAG, "http GET host=$host status=$code")
             if (code in 300..399) {
                 val location = connection.getHeaderField("Location") ?: return
                 download(location, destName, hops + 1)
@@ -409,6 +431,7 @@ class PhotoAlbumRepository(context: Context) {
                 }
             }
             if (header.size < 3 || header[0] != 0xFF.toByte() || header[1] != 0xD8.toByte() || header[2] != 0xFF.toByte()) {
+                Log.i(TAG, "download skip reason=not-jpeg host=$host")
                 temp?.delete()
                 return
             }
@@ -421,6 +444,7 @@ class PhotoAlbumRepository(context: Context) {
                 temp!!.delete()
             }
         } catch (thrown: IOException) {
+            Log.w(TAG, "http GET host=$host failed ${thrown.javaClass.simpleName}")
             temp?.delete()
         } finally {
             connection.disconnect()
@@ -474,8 +498,31 @@ class PhotoAlbumRepository(context: Context) {
         return out.toString("UTF-8")
     }
 
+    private fun jpegCount(): Int {
+        val files = cacheDir.listFiles() ?: return 0
+        var count = 0
+        for (file in files) {
+            if (file.isFile && file.name.endsWith(".jpg") && !file.name.endsWith(".part")) {
+                count++
+            }
+        }
+        return count
+    }
+
     private fun notifyListeners() {
         val json = playlistJson()
+        val enabled = json.startsWith("{\"enabled\":true")
+        var count = 0
+        var at = 0
+        while (true) {
+            val found = json.indexOf(".jpg", at)
+            if (found < 0) {
+                break
+            }
+            count++
+            at = found + 4
+        }
+        Log.i(TAG, "playlist sent enabled=$enabled count=$count")
         val copy = synchronized(listenerLock) { ArrayList(listeners) }
         for (listener in copy) {
             listener.onPlaylist(json)
@@ -483,7 +530,7 @@ class PhotoAlbumRepository(context: Context) {
     }
 
     private companion object {
-        const val TAG = "FamilyDashboard"
+        const val TAG = "FamilyDashPhotos"
         const val PREFS = "family_dashboard"
         const val KEY_TOKEN = "photo_album_token"
         const val KEY_KIND = "photo_album_kind"

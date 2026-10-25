@@ -232,9 +232,29 @@ class PhotoStreamTest {
         assertEquals("https://cvws.icloud-content.com/m.jpg", photos[0].directUrl)
         assertEquals(2048, photos[0].height)
         assertNull(CloudKitAlbum.continuation(body))
+        val braced = """
+            {
+              "records": [{
+                "recordType": "CPLMaster",
+                "recordName": "photo+id/withBase64==",
+                "fields": {
+                  "itemType": {"value": "public.heic"},
+                  "resJPEGMedRes": {"value": {"downloadURL": "https://cvws-h2.icloud-content.com/B/{f}?o=1", "size": 900000}},
+                  "resJPEGMedWidth": {"value": 1536},
+                  "resJPEGMedHeight": {"value": 2048}
+                }
+              }]
+            }
+        """.trimIndent()
+        val kept = CloudKitAlbum.photos(braced)
+        assertEquals(1, kept.size)
+        assertEquals("https://cvws-h2.icloud-content.com/B/{f}?o=1", kept[0].directUrl)
         val query = CloudKitAlbum.resolveQuery("Abcdefghij1234567890ABCDE")
         assertTrue(query.contains("clientBuildNumber=2638BuildBeta15"))
         assertTrue(query.contains("sharing_url_key="))
         assertFalse(query.contains(" "))
+        val quoted = PhotoAlbumUrl.interpret("'https://photos.icloud.com/shared/album/Abcdefghij1234567890ABCDE'")
+        assertEquals("Abcdefghij1234567890ABCDE", (quoted as PhotoAlbumUrl.Action.Save).token)
+        assertEquals(PhotoAlbumUrl.Kind.CLOUDKIT, quoted.kind)
     }
 }

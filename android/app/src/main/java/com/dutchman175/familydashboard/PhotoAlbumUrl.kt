@@ -27,7 +27,13 @@ internal object PhotoAlbumUrl {
         if (raw == null) {
             return Action.Clear
         }
-        val trimmed = raw.trim()
+        var trimmed = raw.trim()
+        if (trimmed.length >= 2) {
+            val quote = trimmed.first()
+            if ((quote == '\'' || quote == '"') && trimmed.last() == quote) {
+                trimmed = trimmed.substring(1, trimmed.length - 1).trim()
+            }
+        }
         if (trimmed.isEmpty() || trimmed.equals("clear", ignoreCase = true) || trimmed == "-") {
             return Action.Clear
         }
