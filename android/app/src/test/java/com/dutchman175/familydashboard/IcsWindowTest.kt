@@ -240,6 +240,107 @@ class IcsWindowTest {
     }
 
     @Test
+    fun coveredMatchesUpcomingAndKeepsAWiderMonth() {
+        val ics = """
+            BEGIN:VCALENDAR
+            VERSION:2.0
+            PRODID:-//test//EN
+            BEGIN:VEVENT
+            UID:early@test
+            DTSTART;TZID=America/Chicago:20260831T100000
+            DTEND;TZID=America/Chicago:20260831T110000
+            SUMMARY:Too early
+            END:VEVENT
+            BEGIN:VEVENT
+            UID:kickoff@test
+            DTSTART;VALUE=DATE:20260901
+            DTEND;VALUE=DATE:20260902
+            SUMMARY:September kickoff
+            END:VEVENT
+            BEGIN:VEVENT
+            UID:sunday@test
+            DTSTART;TZID=America/Chicago:20260906T153000
+            DTEND;TZID=America/Chicago:20260906T163000
+            RRULE:FREQ=WEEKLY;BYDAY=SU
+            SUMMARY:Sunday pickup
+            END:VEVENT
+            BEGIN:VEVENT
+            UID:overnight@test
+            DTSTART;TZID=America/Chicago:20261024T220000
+            DTEND;TZID=America/Chicago:20261025T160000
+            SUMMARY:Overnight trip
+            END:VEVENT
+            BEGIN:VEVENT
+            UID:breakfast@test
+            DTSTART;TZID=America/Chicago:20261025T080000
+            DTEND;TZID=America/Chicago:20261025T090000
+            SUMMARY:Breakfast
+            END:VEVENT
+            BEGIN:VEVENT
+            UID:game@test
+            DTSTART;TZID=America/Chicago:20261025T140000
+            DTEND;TZID=America/Chicago:20261025T160000
+            SUMMARY:Game on now
+            END:VEVENT
+            BEGIN:VEVENT
+            UID:later@test
+            DTSTART;TZID=America/Chicago:20261105T120000
+            DTEND;TZID=America/Chicago:20261105T130000
+            SUMMARY:November checkup
+            END:VEVENT
+            BEGIN:VEVENT
+            UID:nye@test
+            DTSTART;TZID=America/Chicago:20261231T110000
+            DTEND;TZID=America/Chicago:20261231T120000
+            SUMMARY:Year end
+            END:VEVENT
+            BEGIN:VEVENT
+            UID:nextyear@test
+            DTSTART;TZID=America/Chicago:20270101T110000
+            DTEND;TZID=America/Chicago:20270101T120000
+            SUMMARY:Out of range
+            END:VEVENT
+            END:VCALENDAR
+        """.trimIndent()
+        val covered = inDeviceZone("UTC") { IcsWindow.covered(ics, now, zone) }
+        val direct = upcoming(ics)
+        assertEquals(describe(direct), describe(covered.upcoming))
+        assertEquals(direct.size, covered.upcoming.size)
+        var i = 0
+        while (i < direct.size) {
+            assertEquals(direct[i].allDay, covered.upcoming[i].allDay)
+            assertEquals(direct[i].startMillis, covered.upcoming[i].startMillis)
+            assertEquals(direct[i].headingDayMillis, covered.upcoming[i].headingDayMillis)
+            i++
+        }
+        assertTrue(describe(covered.upcoming).contains("2026-10-25 10:00 PM Overnight trip"))
+        assertTrue(describe(covered.upcoming).contains("Game on now"))
+        assertFalse(describe(covered.upcoming).contains("Breakfast"))
+        assertFalse(describe(covered.upcoming).contains("November checkup"))
+
+        val month = describe(covered.month)
+        assertTrue(month.contains("2026-09-01 All day September kickoff"))
+        assertTrue(month.contains("2026-09-06 3:30 PM Sunday pickup"))
+        assertTrue(month.contains("2026-12-27 3:30 PM Sunday pickup"))
+        assertTrue(month.contains("2026-10-24 10:00 PM Overnight trip"))
+        assertTrue(month.contains("2026-10-25 8:00 AM Breakfast"))
+        assertTrue(month.contains("2026-11-05 12:00 PM November checkup"))
+        assertTrue(month.contains("2026-12-31 11:00 AM Year end"))
+        assertFalse(month.contains("Too early"))
+        assertFalse(month.contains("Out of range"))
+        assertTrue(covered.month.count { it.title == "Sunday pickup" } > 8)
+
+        val monthStart = ChicagoTime.startOfMonth(now.time, -1, zone)
+        val monthEnd = ChicagoTime.startOfMonth(now.time, 3, zone)
+        assertEquals(chicago(2026, 9, 1, 0, 0).time, monthStart)
+        assertEquals(chicago(2027, 1, 1, 0, 0).time, monthEnd)
+        for (row in covered.month) {
+            assertTrue(row.headingDayMillis >= monthStart)
+            assertTrue(row.headingDayMillis < monthEnd)
+        }
+    }
+
+    @Test
     fun keepsOnlyTheSoonestEight() {
         val sb = StringBuilder()
         sb.append("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\n")

@@ -49,6 +49,24 @@ class PhotoStreamTest {
     }
 
     @Test
+    fun picksTheLargestJpegUnderAboutFourMegabytes() {
+        val derivatives = JSONObject(
+            """
+            {
+              "thumb": {"checksum": "aaaaaaaaaaaaaaaa", "fileSize": "80000", "width": "360", "height": "480"},
+              "med": {"checksum": "bbbbbbbbbbbbbbbb", "fileSize": "900000", "width": "1536", "height": "2048"},
+              "full": {"checksum": "dddddddddddddddd", "fileSize": "3500000", "width": "3024", "height": "4032"},
+              "huge": {"checksum": "eeeeeeeeeeeeeeee", "fileSize": "9000000", "width": "4032", "height": "6048"}
+            }
+            """.trimIndent()
+        )
+        val picked = SharedStream.pick(derivatives)
+        assertEquals("dddddddddddddddd", picked!!.checksum)
+        assertEquals(4032, picked.height)
+        assertTrue(picked.fileSize <= SharedStream.MAX_PICK_BYTES)
+    }
+
+    @Test
     fun picksScreenSizeNotTheOriginal() {
         val derivatives = JSONObject(
             """
@@ -218,7 +236,10 @@ class PhotoStreamTest {
                     "resJPEGMedRes": {"value": {"downloadURL": "https://cvws.icloud-content.com/m.jpg", "size": 900000}},
                     "resJPEGMedWidth": {"value": 1536},
                     "resJPEGMedHeight": {"value": 2048},
-                    "resOriginalRes": {"value": {"downloadURL": "https://cvws.icloud-content.com/o.jpg", "size": 3000000}},
+                    "resJPEGFullRes": {"value": {"downloadURL": "https://cvws.icloud-content.com/f.jpg", "size": 3200000}},
+                    "resJPEGFullWidth": {"value": 3024},
+                    "resJPEGFullHeight": {"value": 4032},
+                    "resOriginalRes": {"value": {"downloadURL": "https://cvws.icloud-content.com/o.heic", "size": 3000000}},
                     "resOriginalWidth": {"value": 3024},
                     "resOriginalHeight": {"value": 4032}
                   }
@@ -229,8 +250,8 @@ class PhotoStreamTest {
         """.trimIndent()
         val photos = CloudKitAlbum.photos(body)
         assertEquals(1, photos.size)
-        assertEquals("https://cvws.icloud-content.com/m.jpg", photos[0].directUrl)
-        assertEquals(2048, photos[0].height)
+        assertEquals("https://cvws.icloud-content.com/f.jpg", photos[0].directUrl)
+        assertEquals(4032, photos[0].height)
         assertNull(CloudKitAlbum.continuation(body))
         val braced = """
             {

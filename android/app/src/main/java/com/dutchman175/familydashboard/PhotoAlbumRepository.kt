@@ -39,14 +39,21 @@ class PhotoAlbumRepository(context: Context) {
     @Volatile
     private var generation = 0
 
+    @Volatile
+    private var lastFetchMs = 0L
+
+    @Volatile
+    private var fetchRunning = false
+
     fun photoDirectory(): File = cacheDir
 
     fun start() {
         if (!started.compareAndSet(false, true)) {
             return
         }
+        Log.i(TAG, "schedule every=${REFRESH_MINUTES}m")
         scheduler.scheduleWithFixedDelay(
-            { safeFetch() },
+            { safeFetch(force = true) },
             0,
             REFRESH_MINUTES,
             TimeUnit.MINUTES
@@ -75,8 +82,26 @@ class PhotoAlbumRepository(context: Context) {
         intent.removeExtra(PhotoAlbumUrl.EXTRA)
     }
 
+    /**
+     * Does not start a download when a fetch already ran inside the refresh
+     * window. Opening the app or the screensaver must not fetch again.
+     */
     fun requestRefresh() {
-        scheduler.execute { safeFetch() }
+        scheduler.execute { safeFetch(force = false) }
+    }
+
+    fun setPhotoSeconds(seconds: Int) {
+        val saved = sanitizeSeconds(seconds)
+        if (saved == photoSeconds()) {
+            return
+        }
+        prefs.edit().putInt(KEY_SECONDS, saved).commit()
+        Log.i(TAG, "seconds=$saved")
+        notifyListeners()
+    }
+
+    fun photoSeconds(): Int {
+        return sanitizeSeconds(prefs.getInt(KEY_SECONDS, DEFAULT_SECONDS))
     }
 
     fun playlistJson(): String {
@@ -86,7 +111,7 @@ class PhotoAlbumRepository(context: Context) {
             ?.filter { it.endsWith(".jpg") && !it.endsWith(".part") }
             ?.sorted()
             ?: emptyList()
-        return SharedStream.playlistJson(configured, names)
+        return SharedStream.playlistJson(configured, names, photoSeconds())
     }
 
     fun addListener(listener: PlaylistListener) {
@@ -113,7 +138,7 @@ class PhotoAlbumRepository(context: Context) {
             if (!same) {
                 deleteAllPhotos()
             }
-            safeFetch()
+            safeFetch(force = true)
         }
     }
 
@@ -124,7 +149,18 @@ class PhotoAlbumRepository(context: Context) {
         scheduler.execute { deleteAllPhotos() }
     }
 
-    private fun safeFetch() {
+    private fun safeFetch(force: Boolean) {
+        val now = System.currentTimeMillis()
+        if (!force && lastFetchMs != 0L && now - lastFetchMs < REFRESH_MS) {
+            Log.i(TAG, "fetch skip reason=recent")
+            return
+        }
+        if (fetchRunning) {
+            Log.i(TAG, "fetch skip reason=in-flight")
+            return
+        }
+        fetchRunning = true
+        lastFetchMs = now
         val gen = generation
         try {
             fetchOnce(gen)
@@ -133,6 +169,8 @@ class PhotoAlbumRepository(context: Context) {
             if (gen == generation) {
                 notifyListeners()
             }
+        } finally {
+            fetchRunning = false
         }
     }
 
@@ -159,36 +197,49 @@ class PhotoAlbumRepository(context: Context) {
         if (gen != generation) {
             return
         }
+        if (photos.isEmpty()) {
+            Log.i(TAG, "photos listed=0 keep-cache")
+            notifyListeners()
+            return
+        }
         val keep = selectKeep(photos)
-        val keepNames = keep.map { SharedStream.fileName(it.guid) }.toSet()
+        val keepNames = keep.map { cacheName(it) }.toSet()
         deleteExcept(keepNames)
-        val missing = keep.filter { !File(cacheDir, SharedStream.fileName(it.guid)).isFile }
-        if (missing.isNotEmpty()) {
-            val urls = if (page == null) {
-                emptyMap()
-            } else {
-                assetUrls(page.host, token, missing)
+        val missing = keep.filter { !isCachedJpeg(cacheName(it)) }
+        val urls = if (missing.isEmpty() || page == null) {
+            emptyMap()
+        } else {
+            assetUrls(page.host, token, missing)
+        }
+        var downloaded = 0
+        for (photo in missing) {
+            if (gen != generation || cacheBytes() > MAX_CACHE_BYTES) {
+                break
             }
-            for (photo in missing) {
-                if (gen != generation || cacheBytes() > MAX_CACHE_BYTES) {
-                    break
-                }
-                val url = photo.directUrl ?: urls[photo.checksum] ?: continue
-                download(url, SharedStream.fileName(photo.guid), 0)
-            }
+            val url = photo.directUrl ?: urls[photo.checksum] ?: continue
+            Log.i(TAG, "download jpeg ${photo.width}x${photo.height}")
+            download(url, cacheName(photo), 0)
+            downloaded++
         }
         if (gen != generation) {
             return
         }
-        Log.i(TAG, "cached=${jpegCount()} kept=${keep.size}")
+        Log.i(
+            TAG,
+            "cached=${jpegCount()} kept=${keep.size} cacheHit=${keep.size - missing.size} download=$downloaded"
+        )
         notifyListeners()
+    }
+
+    private fun cacheName(photo: SharedStream.PhotoChoice): String {
+        return SharedStream.cacheName(photo.guid, photo.width, photo.height)
     }
 
     private fun selectKeep(photos: List<SharedStream.PhotoChoice>): List<SharedStream.PhotoChoice> {
         val fresh = ArrayList<SharedStream.PhotoChoice>()
         val cached = ArrayList<SharedStream.PhotoChoice>()
         for (photo in photos) {
-            if (File(cacheDir, SharedStream.fileName(photo.guid)).isFile) {
+            if (isCachedJpeg(cacheName(photo))) {
                 cached.add(photo)
             } else {
                 fresh.add(photo)
@@ -270,7 +321,7 @@ class PhotoAlbumRepository(context: Context) {
             connection.setRequestProperty("Content-Type", "text/plain")
             connection.setRequestProperty("Accept", "application/json")
             connection.setRequestProperty("Origin", "https://photos.icloud.com")
-            connection.setRequestProperty("User-Agent", "FamilyDashboard/1.2.1")
+            connection.setRequestProperty("User-Agent", "FamilyDashboard/1.3.0")
             connection.outputStream.use { it.write(json.toByteArray(Charsets.UTF_8)) }
             val code = connection.responseCode
             Log.i(TAG, "http POST host=$host status=$code")
@@ -344,7 +395,7 @@ class PhotoAlbumRepository(context: Context) {
             connection.doOutput = true
             connection.setRequestProperty("Content-Type", "application/json")
             connection.setRequestProperty("Accept", "application/json")
-            connection.setRequestProperty("User-Agent", "FamilyDashboard/1.2.1")
+            connection.setRequestProperty("User-Agent", "FamilyDashboard/1.3.0")
             connection.outputStream.use { it.write(json.toByteArray(Charsets.UTF_8)) }
             val code = connection.responseCode
             Log.i(TAG, "http POST host=$host status=$code")
@@ -392,7 +443,7 @@ class PhotoAlbumRepository(context: Context) {
             connection.connectTimeout = 20_000
             connection.readTimeout = 30_000
             connection.setRequestProperty("Accept", "image/jpeg")
-            connection.setRequestProperty("User-Agent", "FamilyDashboard/1.2.1")
+            connection.setRequestProperty("User-Agent", "FamilyDashboard/1.3.0")
             val code = connection.responseCode
             Log.i(TAG, "http GET host=$host status=$code")
             if (code in 300..399) {
@@ -498,6 +549,25 @@ class PhotoAlbumRepository(context: Context) {
         return out.toString("UTF-8")
     }
 
+    private fun isCachedJpeg(name: String): Boolean {
+        val file = File(cacheDir, name)
+        if (!file.isFile || file.length() < 3L) {
+            return false
+        }
+        return try {
+            file.inputStream().use { input ->
+                val header = ByteArray(3)
+                val n = input.read(header)
+                n == 3 &&
+                    header[0] == 0xFF.toByte() &&
+                    header[1] == 0xD8.toByte() &&
+                    header[2] == 0xFF.toByte()
+            }
+        } catch (thrown: IOException) {
+            false
+        }
+    }
+
     private fun jpegCount(): Int {
         val files = cacheDir.listFiles() ?: return 0
         var count = 0
@@ -534,10 +604,26 @@ class PhotoAlbumRepository(context: Context) {
         const val PREFS = "family_dashboard"
         const val KEY_TOKEN = "photo_album_token"
         const val KEY_KIND = "photo_album_kind"
+        const val KEY_SECONDS = "photo_seconds"
+        const val DEFAULT_SECONDS = 18
         const val REFRESH_MINUTES = 45L
+        const val REFRESH_MS = REFRESH_MINUTES * 60L * 1000L
         const val MAX_PHOTOS = 40
         const val BATCH = 20
         const val MAX_CACHE_BYTES = 80L * 1024L * 1024L
         const val MAX_META_BYTES = 4 * 1024 * 1024
+        val SECOND_STEPS = intArrayOf(5, 10, 15, 20, 30, 45, 60, 90, 120, 300, 600)
+
+        fun sanitizeSeconds(seconds: Int): Int {
+            if (seconds == DEFAULT_SECONDS) {
+                return DEFAULT_SECONDS
+            }
+            for (step in SECOND_STEPS) {
+                if (seconds == step) {
+                    return seconds
+                }
+            }
+            return DEFAULT_SECONDS
+        }
     }
 }

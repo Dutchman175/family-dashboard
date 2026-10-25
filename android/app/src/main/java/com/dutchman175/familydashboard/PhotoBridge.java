@@ -16,4 +16,9 @@ public final class PhotoBridge {
     public String getPlaylist() {
         return repository.playlistJson();
     }
+
+    @JavascriptInterface
+    public void setSeconds(int seconds) {
+        repository.setPhotoSeconds(seconds);
+    }
 }

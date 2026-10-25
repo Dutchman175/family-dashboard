@@ -66,7 +66,8 @@ internal object CalendarSnapshot {
         loading: Boolean,
         rows: List<IcsWindow.Row>,
         nowMillis: Long,
-        zone: TimeZone
+        zone: TimeZone,
+        monthRows: List<IcsWindow.Row> = emptyList()
     ): String {
         if (!configured) {
             return UNCONFIGURED
@@ -76,7 +77,23 @@ internal object CalendarSnapshot {
         sb.append(if (stale) "true" else "false")
         sb.append(",\"loading\":")
         sb.append(if (loading) "true" else "false")
+        sb.append(",\"today\":")
+        sb.append(jsonString(ChicagoTime.dayKey(nowMillis, zone)))
         sb.append(",\"events\":[")
+        appendEvents(sb, rows, nowMillis, zone, includeHeading = true)
+        sb.append("],\"month\":[")
+        appendEvents(sb, monthRows, nowMillis, zone, includeHeading = false)
+        sb.append("]}")
+        return sb.toString()
+    }
+
+    private fun appendEvents(
+        sb: StringBuilder,
+        rows: List<IcsWindow.Row>,
+        nowMillis: Long,
+        zone: TimeZone,
+        includeHeading: Boolean
+    ) {
         for (i in rows.indices) {
             if (i > 0) {
                 sb.append(',')
@@ -86,16 +103,16 @@ internal object CalendarSnapshot {
             sb.append(jsonString(row.title))
             sb.append(",\"allDay\":")
             sb.append(if (row.allDay) "true" else "false")
-            sb.append(",\"heading\":")
-            sb.append(jsonString(ChicagoTime.heading(row.headingDayMillis, nowMillis, zone)))
+            if (includeHeading) {
+                sb.append(",\"heading\":")
+                sb.append(jsonString(ChicagoTime.heading(row.headingDayMillis, nowMillis, zone)))
+            }
             sb.append(",\"time\":")
             sb.append(jsonString(if (row.allDay) "All day" else ChicagoTime.formatTime(row.startMillis, zone)))
             sb.append(",\"day\":")
             sb.append(jsonString(ChicagoTime.dayKey(row.headingDayMillis, zone)))
             sb.append('}')
         }
-        sb.append("]}")
-        return sb.toString()
     }
 
     private fun jsonString(value: String): String {

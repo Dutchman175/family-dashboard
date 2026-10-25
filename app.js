@@ -42,8 +42,6 @@
     dashEl.style.webkitTransform = transform;
     dashEl.style.transform = transform;
     fitCalendar();
-    if (photoA && photoA.className.indexOf("is-on") >= 0) placeCover(photoA);
-    if (photoB && photoB.className.indexOf("is-on") >= 0) placeCover(photoB);
   }
 
   function renderZonedClock(now) {
@@ -557,9 +555,12 @@
       clearNode(calendarListEl);
       calendarNoteEl.className = "calendar-note";
       calendarNoteEl.textContent = "";
+      syncCalendarTarget();
+      if (monthOpen) closeMonthView();
       return;
     }
-    calendarEl.className = "panel panel-calendar is-on";
+    var focused = calendarEl.className.indexOf("is-focused") >= 0;
+    calendarEl.className = focused ? "panel panel-calendar is-on is-focused" : "panel panel-calendar is-on";
     clearNode(calendarListEl);
     var events = snapshot.events || [];
     if (!events.length) {
@@ -590,6 +591,11 @@
       calendarNoteEl.className = "calendar-note";
     }
     fitCalendar();
+    syncCalendarTarget();
+    if (monthOpen) {
+      if (!snapshot.configured) closeMonthView();
+      else renderMonth();
+    }
   }
 
   function fitCalendar() {
@@ -620,16 +626,353 @@
     renderCalendar(snapshot);
   };
 
+  if (typeof window.__tvKeys === "undefined") window.__tvKeys = false;
+  var monthEl = document.getElementById("month");
+  var monthTitleEl = document.getElementById("month-title");
+  var monthGridEl = document.getElementById("month-grid");
+  var monthOpen = false;
+  var monthCursor = null;
+  var MONTH_NAMES = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
+  ];
+
+  function syncCalendarTarget() {
+    if (!calendarEl) return;
+    var on = !!(window.__tvKeys && lastCalendarSnapshot && lastCalendarSnapshot.configured);
+    if (on) {
+      calendarEl.setAttribute("tabindex", "0");
+    } else {
+      calendarEl.removeAttribute("tabindex");
+      if (document.activeElement === calendarEl) calendarEl.blur();
+    }
+  }
+
+  function monthFromToday(today) {
+    var y = 0;
+    var m = -1;
+    if (typeof today === "string" && today.length >= 7) {
+      y = parseInt(today.slice(0, 4), 10);
+      m = parseInt(today.slice(5, 7), 10) - 1;
+    }
+    if (!y || m < 0 || m > 11) {
+      var fallback = chicagoTodayParts();
+      y = fallback.y;
+      m = fallback.m;
+    }
+    return { y: y, m: m };
+  }
+
+  function chicagoTodayParts() {
+    try {
+      var fmt = new Intl.DateTimeFormat("en-US", {
+        timeZone: "America/Chicago",
+        year: "numeric",
+        month: "2-digit"
+      });
+      var parts = fmt.formatToParts(new Date());
+      var y = 0;
+      var m = 0;
+      var i;
+      for (i = 0; i < parts.length; i++) {
+        if (parts[i].type === "year") y = parseInt(parts[i].value, 10);
+        if (parts[i].type === "month") m = parseInt(parts[i].value, 10) - 1;
+      }
+      if (y && m >= 0 && m <= 11) return { y: y, m: m };
+    } catch (e) {}
+    var now = new Date();
+    return { y: now.getFullYear(), m: now.getMonth() };
+  }
+
+  function daysInMonth(y, m) {
+    return new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+  }
+
+  function monthDayKey(y, m, d) {
+    var mm = m + 1;
+    return y + "-" + (mm < 10 ? "0" : "") + mm + "-" + (d < 10 ? "0" : "") + d;
+  }
+
+  function openMonthView() {
+    if (!monthEl || !lastCalendarSnapshot || !lastCalendarSnapshot.configured) return;
+    if (!monthOpen || !monthCursor) {
+      monthCursor = monthFromToday(lastCalendarSnapshot.today);
+    }
+    monthOpen = true;
+    monthEl.className = "month is-on";
+    monthEl.setAttribute("aria-hidden", "false");
+    renderMonth();
+  }
+
+  function closeMonthView() {
+    monthOpen = false;
+    if (!monthEl) return;
+    monthEl.className = "month";
+    monthEl.setAttribute("aria-hidden", "true");
+  }
+
+  function shiftMonth(delta) {
+    if (!monthOpen || !monthCursor) return;
+    var m = monthCursor.m + delta;
+    var y = monthCursor.y;
+    while (m < 0) {
+      m += 12;
+      y -= 1;
+    }
+    while (m > 11) {
+      m -= 12;
+      y += 1;
+    }
+    monthCursor = { y: y, m: m };
+    renderMonth();
+  }
+
+  function renderMonth() {
+    if (!monthOpen || !monthCursor || !monthGridEl || !monthTitleEl) return;
+    var y = monthCursor.y;
+    var m = monthCursor.m;
+    monthTitleEl.textContent = MONTH_NAMES[m] + " " + y;
+    clearNode(monthGridEl);
+    var byDay = {};
+    var events = (lastCalendarSnapshot && lastCalendarSnapshot.month) || [];
+    var i;
+    for (i = 0; i < events.length; i++) {
+      var ev = events[i];
+      if (!ev || !ev.day) continue;
+      if (!byDay[ev.day]) byDay[ev.day] = [];
+      byDay[ev.day].push(ev);
+    }
+    var firstDow = new Date(Date.UTC(y, m, 1)).getUTCDay();
+    var dim = daysInMonth(y, m);
+    var weeks = Math.ceil((firstDow + dim) / 7);
+    if (weeks < 4) weeks = 4;
+    var todayKey = (lastCalendarSnapshot && lastCalendarSnapshot.today) || "";
+    var prevDim = daysInMonth(y, m - 1);
+    var week;
+    for (week = 0; week < weeks; week++) {
+      var row = el("div", "month-week");
+      var col;
+      for (col = 0; col < 7; col++) {
+        var index = week * 7 + col;
+        var dayNum;
+        var cellY = y;
+        var cellM = m;
+        var out = false;
+        if (index < firstDow) {
+          out = true;
+          dayNum = prevDim - firstDow + index + 1;
+          cellM = m - 1;
+          if (cellM < 0) {
+            cellM = 11;
+            cellY = y - 1;
+          }
+        } else if (index >= firstDow + dim) {
+          out = true;
+          dayNum = index - (firstDow + dim) + 1;
+          cellM = m + 1;
+          if (cellM > 11) {
+            cellM = 0;
+            cellY = y + 1;
+          }
+        } else {
+          dayNum = index - firstDow + 1;
+        }
+        var key = monthDayKey(cellY, cellM, dayNum);
+        var cls = "month-cell";
+        if (out) cls += " is-out";
+        if (key === todayKey) cls += " is-today";
+        var cell = el("div", cls);
+        cell.appendChild(el("p", "month-num", String(dayNum)));
+        var list = byDay[key] || [];
+        var shown = list.length > 3 ? 3 : list.length;
+        var n;
+        for (n = 0; n < shown; n++) {
+          var item = list[n];
+          cell.appendChild(el(
+            "p",
+            item && item.allDay ? "month-event is-all-day" : "month-event",
+            (item && item.title) || "Busy"
+          ));
+        }
+        if (list.length > 3) {
+          cell.appendChild(el("p", "month-more", "+" + (list.length - 3) + " more"));
+        }
+        row.appendChild(cell);
+      }
+      monthGridEl.appendChild(row);
+    }
+  }
+
+  window.onDashKey = function (name) {
+    if (!window.__tvKeys) return;
+    if (name === "focus") {
+      syncCalendarTarget();
+      setPhotoFocused(false);
+      if (calendarEl && calendarEl.getAttribute("tabindex") === "0") {
+        calendarEl.className = "panel panel-calendar is-on is-focused";
+        calendarEl.focus();
+      }
+      return;
+    }
+    if (name === "focus-photo") {
+      setCalendarFocused(false);
+      setPhotoFocused(true);
+      return;
+    }
+    if (name === "open-settings") {
+      openPhotoSettings();
+      return;
+    }
+    if (name === "close-settings") {
+      closePhotoSettings();
+      return;
+    }
+    if (name === "seconds-prev") {
+      stepPhotoSeconds(-1);
+      return;
+    }
+    if (name === "seconds-next") {
+      stepPhotoSeconds(1);
+      return;
+    }
+    if (name === "open") {
+      openMonthView();
+      return;
+    }
+    if (name === "close") {
+      closeMonthView();
+      return;
+    }
+    if (name === "prev") {
+      shiftMonth(-1);
+      return;
+    }
+    if (name === "next") {
+      shiftMonth(1);
+    }
+  };
+
+  var PHOTO_STEPS = [5, 10, 15, 20, 30, 45, 60, 90, 120, 300, 600];
   var PHOTO_MS = 18000;
+  var photoSeconds = 18;
   var photoPanel = document.getElementById("photo");
   var photoFrame = document.getElementById("photo-frame");
   var photoA = document.getElementById("photo-a");
   var photoB = document.getElementById("photo-b");
+  var photoBgA = document.getElementById("photo-bg-a");
+  var photoBgB = document.getElementById("photo-bg-b");
+  var photoSettings = document.getElementById("photo-settings");
+  var photoSecondsEl = document.getElementById("photo-seconds");
   var photoUrls = [];
   var photoIndex = 0;
   var photoTimer = null;
   var photoKey = "";
   var photoShowingA = true;
+  var photoSettingsOpen = false;
+
+  function blurFor(img) {
+    if (img === photoA) return photoBgA;
+    if (img === photoB) return photoBgB;
+    return null;
+  }
+
+  function setCalendarFocused(on) {
+    if (!calendarEl) return;
+    if (!on) {
+      calendarEl.className = calendarEl.className.replace(" is-focused", "");
+      return;
+    }
+    if (calendarEl.className.indexOf("is-on") < 0) return;
+    if (calendarEl.className.indexOf("is-focused") < 0) {
+      calendarEl.className = calendarEl.className + " is-focused";
+    }
+    calendarEl.focus();
+  }
+
+  function setPhotoFocused(on) {
+    if (!photoPanel || photoPanel.className.indexOf("is-on") < 0) {
+      if (photoPanel && !on) photoPanel.className = photoPanel.className.replace(" is-focused", "");
+      return;
+    }
+    var cls = "panel panel-photo is-on";
+    if (on) cls += " is-focused";
+    photoPanel.className = cls;
+    if (on) {
+      photoPanel.setAttribute("tabindex", "0");
+      photoPanel.focus();
+    }
+  }
+
+  function showPhotoSeconds() {
+    if (photoSecondsEl) photoSecondsEl.textContent = String(photoSeconds);
+  }
+
+  function applyPhotoInterval(seconds) {
+    var n = parseInt(seconds, 10);
+    if (isNaN(n) || n < 5 || n > 600) n = 18;
+    var changed = n !== photoSeconds;
+    photoSeconds = n;
+    PHOTO_MS = n * 1000;
+    showPhotoSeconds();
+    if (!changed) return;
+    if (photoTimer) window.clearInterval(photoTimer);
+    photoTimer = null;
+    if (photoUrls.length > 1) {
+      photoTimer = window.setInterval(advancePhoto, PHOTO_MS);
+    }
+  }
+
+  function stepPhotoSeconds(delta) {
+    var next = photoSeconds;
+    var idx = PHOTO_STEPS.indexOf(photoSeconds);
+    var i;
+    if (idx < 0) {
+      if (delta > 0) {
+        next = PHOTO_STEPS[PHOTO_STEPS.length - 1];
+        for (i = 0; i < PHOTO_STEPS.length; i++) {
+          if (PHOTO_STEPS[i] > photoSeconds) {
+            next = PHOTO_STEPS[i];
+            break;
+          }
+        }
+      } else {
+        next = PHOTO_STEPS[0];
+        for (i = PHOTO_STEPS.length - 1; i >= 0; i--) {
+          if (PHOTO_STEPS[i] < photoSeconds) {
+            next = PHOTO_STEPS[i];
+            break;
+          }
+        }
+      }
+    } else {
+      var at = idx + delta;
+      if (at < 0) at = 0;
+      if (at >= PHOTO_STEPS.length) at = PHOTO_STEPS.length - 1;
+      next = PHOTO_STEPS[at];
+    }
+    if (next === photoSeconds) return;
+    applyPhotoInterval(next);
+    try {
+      if (window.FamilyPhotos && typeof window.FamilyPhotos.setSeconds === "function") {
+        window.FamilyPhotos.setSeconds(next);
+      }
+    } catch (e) {}
+  }
+
+  function openPhotoSettings() {
+    if (!photoSettings || !photoPanel || photoPanel.className.indexOf("is-on") < 0) return;
+    photoSettingsOpen = true;
+    photoSettings.className = "photo-settings is-on";
+    photoSettings.setAttribute("aria-hidden", "false");
+    showPhotoSeconds();
+  }
+
+  function closePhotoSettings() {
+    photoSettingsOpen = false;
+    if (!photoSettings) return;
+    photoSettings.className = "photo-settings";
+    photoSettings.setAttribute("aria-hidden", "true");
+  }
 
   function allowedPhotoUrl(url) {
     if (typeof url !== "string") return false;
@@ -653,35 +996,23 @@
     return copy;
   }
 
-  function placeCover(img) {
-    if (!img || !photoFrame) return;
-    var fw = photoFrame.clientWidth;
-    var fh = photoFrame.clientHeight;
-    var nw = img.naturalWidth;
-    var nh = img.naturalHeight;
-    if (!fw || !fh || !nw || !nh) return;
-    var scale = Math.max(fw / nw, fh / nh);
-    var w = Math.ceil(nw * scale);
-    var h = Math.ceil(nh * scale);
-    img.style.width = w + "px";
-    img.style.height = h + "px";
-    img.style.left = Math.round((fw - w) / 2) + "px";
-    img.style.top = Math.round((fh - h) / 2) + "px";
-  }
-
   function setPhotoPanel(on) {
     if (!photoPanel) return;
     var wantDash = on ? "dashboard has-photo" : "dashboard";
     var layoutChanged = !dashEl || dashEl.className !== wantDash;
-    photoPanel.className = on ? "panel panel-photo is-on" : "panel panel-photo";
+    var focused = photoPanel.className.indexOf("is-focused") >= 0;
+    var cls = on ? "panel panel-photo is-on" : "panel panel-photo";
+    if (on && focused) cls += " is-focused";
+    photoPanel.className = cls;
+    if (on && (focused || window.__tvKeys)) photoPanel.setAttribute("tabindex", "0");
+    else photoPanel.removeAttribute("tabindex");
     photoPanel.setAttribute("aria-hidden", on ? "false" : "true");
+    if (!on) closePhotoSettings();
     if (dashEl) dashEl.className = wantDash;
     if (layoutChanged) {
       if (lastCalendarSnapshot) renderCalendar(lastCalendarSnapshot);
       else fitCalendar();
     }
-    if (photoA && photoA.className.indexOf("is-on") >= 0) placeCover(photoA);
-    if (photoB && photoB.className.indexOf("is-on") >= 0) placeCover(photoB);
   }
 
   function stopPhotos() {
@@ -701,24 +1032,39 @@
       photoB.className = "photo-img";
       photoB.removeAttribute("src");
     }
+    if (photoBgA) {
+      photoBgA.className = "photo-blur";
+      photoBgA.removeAttribute("src");
+    }
+    if (photoBgB) {
+      photoBgB.className = "photo-blur";
+      photoBgB.removeAttribute("src");
+    }
     setPhotoPanel(false);
   }
 
   function showPhoto(img, url, attempts) {
+    var bg = blurFor(img);
     img.onload = function () {
       if (img.getAttribute("data-want") !== url) return;
-      placeCover(img);
       var other = img === photoA ? photoB : photoA;
+      var otherBg = blurFor(other);
       var cross = other && other.getAttribute("src") && other.className.indexOf("is-on") >= 0;
       if (cross) {
         img.className = "photo-img is-fade";
+        if (bg) bg.className = "photo-blur is-fade";
         other.className = "photo-img is-fade is-on";
+        if (otherBg) otherBg.className = "photo-blur is-fade is-on";
         var ignored = img.offsetWidth;
         img.className = "photo-img is-fade is-on";
+        if (bg) bg.className = "photo-blur is-fade is-on";
         other.className = "photo-img is-fade";
+        if (otherBg) otherBg.className = "photo-blur is-fade";
       } else {
         img.className = "photo-img is-on";
+        if (bg) bg.className = "photo-blur is-on";
         if (other) other.className = "photo-img";
+        if (otherBg) otherBg.className = "photo-blur";
       }
       setPhotoPanel(true);
       var at = photoUrls.indexOf(url);
@@ -736,6 +1082,7 @@
       showPhoto(img, nextUrl, attempts + 1);
     };
     img.setAttribute("data-want", url);
+    if (bg) bg.src = url;
     img.src = url;
   }
 
@@ -756,6 +1103,7 @@
         if (allowedPhotoUrl(raw[i])) list.push(raw[i]);
       }
     }
+    if (payload && typeof payload.seconds === "number") applyPhotoInterval(payload.seconds);
     var key = list.slice().sort().join("\n");
     if (!list.length) {
       stopPhotos();

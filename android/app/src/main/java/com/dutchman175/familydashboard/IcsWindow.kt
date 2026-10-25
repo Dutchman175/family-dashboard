@@ -18,6 +18,7 @@ import java.util.TimeZone
 internal object IcsWindow {
     const val LIMIT = 8
     const val DAYS = 7
+    const val MONTH_LIMIT = 1500
     private const val MAX_CHARS = 4_000_000
     private const val MAX_SCAN = 5000
     private const val MAX_LOOKBACK_DAYS = 370
@@ -34,6 +35,12 @@ internal object IcsWindow {
         }
     }
 
+    /** Month grid rows plus the same upcoming list the dashboard panel shows. */
+    class Covered(
+        val month: List<Row>,
+        val upcoming: List<Row>
+    )
+
     fun upcoming(
         ics: String,
         now: Date,
@@ -44,25 +51,52 @@ internal object IcsWindow {
         if (limit <= 0 || days <= 0) {
             return emptyList()
         }
-        if (ics.length > MAX_CHARS) {
-            throw IOException("calendar too large")
-        }
-        if (!ics.contains("BEGIN:VCALENDAR", ignoreCase = true)) {
-            throw IOException("calendar parse failed")
-        }
-        val calendars = try {
-            Biweekly.parse(ics).all()
-        } catch (ex: Exception) {
-            throw IOException("calendar parse failed")
-        }
-        if (calendars == null) {
-            throw IOException("calendar parse failed")
-        }
-
         val nowMillis = now.time
         val windowStart = ChicagoTime.startOfDay(nowMillis, zone)
         val windowEnd = ChicagoTime.addDays(windowStart, days, zone)
-        val order = Comparator<Row> { a, b ->
+        val sink = Sink(windowStart, windowEnd, nowMillis, limit, dropEnded = true)
+        val groups = readGroups(ics)
+        expandGroups(groups, zone, windowStart, windowEnd) { start, duration, allDay, title ->
+            emitRow(sink, start, duration, allDay, title, zone)
+        }
+        return sink.finish()
+    }
+
+    /**
+     * Parses the feed once. Month rows cover the start of the previous month
+     * through the end of the month two months ahead, including events that
+     * already ended. Upcoming is still the next 8 events in the coming week.
+     */
+    fun covered(
+        ics: String,
+        now: Date,
+        zone: TimeZone = ChicagoTime.ZONE
+    ): Covered {
+        val nowMillis = now.time
+        val today = ChicagoTime.startOfDay(nowMillis, zone)
+        val upcomingEnd = ChicagoTime.addDays(today, DAYS, zone)
+        val monthStart = ChicagoTime.startOfMonth(nowMillis, -1, zone)
+        val monthEnd = ChicagoTime.startOfMonth(nowMillis, 3, zone)
+        val monthSink = Sink(monthStart, monthEnd, nowMillis, MONTH_LIMIT, dropEnded = false)
+        val upcomingSink = Sink(today, upcomingEnd, nowMillis, LIMIT, dropEnded = true)
+        val groups = readGroups(ics)
+        expandGroups(groups, zone, monthStart, monthEnd) { start, duration, allDay, title ->
+            emitRow(monthSink, start, duration, allDay, title, zone)
+        }
+        expandGroups(groups, zone, today, upcomingEnd) { start, duration, allDay, title ->
+            emitRow(upcomingSink, start, duration, allDay, title, zone)
+        }
+        return Covered(monthSink.finish(), upcomingSink.finish())
+    }
+
+    private class Sink(
+        val windowStart: Long,
+        val windowEnd: Long,
+        val nowMillis: Long,
+        private val limit: Int,
+        val dropEnded: Boolean
+    ) {
+        private val order = Comparator<Row> { a, b ->
             val byDay = a.headingDayMillis.compareTo(b.headingDayMillis)
             if (byDay != 0) {
                 return@Comparator byDay
@@ -77,7 +111,13 @@ internal object IcsWindow {
             }
             a.title.compareTo(b.title)
         }
-        val heap = PriorityQueue<Row>(limit + 1, Comparator { a, b -> order.compare(b, a) })
+        private val heap = PriorityQueue<Row>(limit + 1, Comparator { a, b -> order.compare(b, a) })
+
+        fun finish(): List<Row> {
+            val out = ArrayList(heap)
+            out.sortWith(order)
+            return out
+        }
 
         fun offer(row: Row) {
             if (heap.size < limit) {
@@ -90,49 +130,79 @@ internal object IcsWindow {
                 heap.add(row)
             }
         }
+    }
 
-        fun emit(startMillis: Long, durationMs: Long, allDay: Boolean, title: String) {
-            if (allDay) {
-                val dayCount = dayCount(durationMs)
-                val eventStart = ChicagoTime.startOfDay(startMillis, zone)
-                val roughEnd = eventStart + dayCount.toLong() * ChicagoTime.DAY_MS + ChicagoTime.DAY_MS
-                if (roughEnd <= windowStart || eventStart >= windowEnd) {
-                    return
+    private fun emitRow(
+        sink: Sink,
+        startMillis: Long,
+        durationMs: Long,
+        allDay: Boolean,
+        title: String,
+        zone: TimeZone
+    ) {
+        if (allDay) {
+            val spanned = dayCount(durationMs)
+            val eventStart = ChicagoTime.startOfDay(startMillis, zone)
+            val roughEnd = eventStart + spanned.toLong() * ChicagoTime.DAY_MS + ChicagoTime.DAY_MS
+            if (roughEnd <= sink.windowStart || eventStart >= sink.windowEnd) {
+                return
+            }
+            var cursor = eventStart
+            var index = 0
+            if (cursor < sink.windowStart) {
+                val skip = daysBetween(cursor, sink.windowStart, zone)
+                if (skip > 0) {
+                    cursor = ChicagoTime.addDays(cursor, skip, zone)
+                    index = skip
                 }
-                var cursor = eventStart
-                var index = 0
-                if (cursor < windowStart) {
-                    val skip = daysBetween(cursor, windowStart, zone)
-                    if (skip > 0) {
-                        cursor = ChicagoTime.addDays(cursor, skip, zone)
-                        index = skip
-                    }
-                }
-                while (index < dayCount && cursor < windowEnd) {
-                    if (cursor >= windowStart) {
-                        offer(
-                            Row(
-                                title,
-                                cursor,
-                                ChicagoTime.addDays(cursor, 1, zone),
-                                true,
-                                cursor
-                            )
+            }
+            while (index < spanned && cursor < sink.windowEnd) {
+                if (cursor >= sink.windowStart) {
+                    sink.offer(
+                        Row(
+                            title,
+                            cursor,
+                            ChicagoTime.addDays(cursor, 1, zone),
+                            true,
+                            cursor
                         )
-                    }
-                    cursor = ChicagoTime.addDays(cursor, 1, zone)
-                    index++
+                    )
                 }
-                return
+                cursor = ChicagoTime.addDays(cursor, 1, zone)
+                index++
             }
-            val end = if (durationMs > 0) startMillis + durationMs else startMillis + 60_000L
-            if (end <= nowMillis || startMillis >= windowEnd || end <= windowStart) {
-                return
-            }
-            val heading = if (startMillis < windowStart) windowStart else ChicagoTime.startOfDay(startMillis, zone)
-            offer(Row(title, startMillis, end, false, heading))
+            return
         }
+        val end = if (durationMs > 0) startMillis + durationMs else startMillis + 60_000L
+        if (startMillis >= sink.windowEnd || end <= sink.windowStart) {
+            return
+        }
+        if (sink.dropEnded && end <= sink.nowMillis) {
+            return
+        }
+        val heading = if (startMillis < sink.windowStart) {
+            sink.windowStart
+        } else {
+            ChicagoTime.startOfDay(startMillis, zone)
+        }
+        sink.offer(Row(title, startMillis, end, false, heading))
+    }
 
+    private fun readGroups(ics: String): LinkedHashMap<String, MutableList<VEvent>> {
+        if (ics.length > MAX_CHARS) {
+            throw IOException("calendar too large")
+        }
+        if (!ics.contains("BEGIN:VCALENDAR", ignoreCase = true)) {
+            throw IOException("calendar parse failed")
+        }
+        val calendars = try {
+            Biweekly.parse(ics).all()
+        } catch (ex: Exception) {
+            throw IOException("calendar parse failed")
+        }
+        if (calendars == null) {
+            throw IOException("calendar parse failed")
+        }
         val groups = LinkedHashMap<String, MutableList<VEvent>>()
         var solo = 0
         for (calendar in calendars) {
@@ -149,7 +219,16 @@ internal object IcsWindow {
                 list.add(event)
             }
         }
+        return groups
+    }
 
+    private fun expandGroups(
+        groups: Map<String, MutableList<VEvent>>,
+        zone: TimeZone,
+        windowStart: Long,
+        windowEnd: Long,
+        emit: (Long, Long, Boolean, String) -> Unit
+    ) {
         for (events in groups.values) {
             val masters = ArrayList<VEvent>()
             val overrides = ArrayList<VEvent>()
@@ -163,21 +242,17 @@ internal object IcsWindow {
             val master = masters.firstOrNull { it.recurrenceRule != null } ?: masters.firstOrNull()
             if (master == null) {
                 for (override in overrides) {
-                    emitStandalone(override, zone, ::emit)
+                    emitStandalone(override, zone, emit)
                 }
                 continue
             }
             val recurring = master.recurrenceRule != null || master.recurrenceDates.isNotEmpty()
             if (!recurring && overrides.isEmpty()) {
-                emitStandalone(master, zone, ::emit)
+                emitStandalone(master, zone, emit)
             } else {
-                expand(master, overrides, zone, windowStart, windowEnd, ::emit)
+                expand(master, overrides, zone, windowStart, windowEnd, emit)
             }
         }
-
-        val out = ArrayList(heap)
-        out.sortWith(order)
-        return out
     }
 
     private fun emitStandalone(
