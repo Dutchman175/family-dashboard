@@ -11,15 +11,23 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<link rel="stylesheet" href="styles.css?v=7">
+<link rel="stylesheet" href="styles.css?v=8">
 </head>
 <body>
 <div id="stage" class="stage">
   <div id="dashboard" class="dashboard">
     <section class="panel panel-photo" id="photo" aria-hidden="true">
       <div class="photo-frame" id="photo-frame">
+        <img id="photo-bg-a" class="photo-blur" alt="">
+        <img id="photo-bg-b" class="photo-blur" alt="">
         <img id="photo-a" class="photo-img" alt="">
         <img id="photo-b" class="photo-img" alt="">
+      </div>
+      <div id="photo-settings" class="photo-settings" aria-hidden="true">
+        <p class="kicker">Slideshow</p>
+        <p class="photo-settings-label">Seconds per photo</p>
+        <p id="photo-seconds" class="photo-settings-value">18</p>
+        <p class="photo-settings-hint">Left and right change it · OK closes</p>
       </div>
     </section>
     <div class="main-col">
@@ -75,6 +83,6 @@
 <noscript>
   <p class="noscript">JavaScript is off, so the clock and weather cannot run.</p>
 </noscript>
-<script src="app.js?v=7"></script>
+<script src="app.js?v=8"></script>
 </body>
 </html>

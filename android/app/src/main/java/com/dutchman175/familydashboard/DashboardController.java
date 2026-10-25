@@ -52,7 +52,8 @@ final class DashboardController {
     private boolean destroyed;
     private boolean loadFailed;
     private boolean monthOpen;
-    private boolean calendarFocused;
+    private boolean settingsOpen;
+    private String focusTarget = "";
     private final Runnable idleClose;
 
     DashboardController(Context context, View root, boolean interactive) {
@@ -114,7 +115,6 @@ final class DashboardController {
         calendar.addListener(snapshotListener);
         calendar.requestRefresh();
         photos.addListener(playlistListener);
-        photos.requestRefresh();
         load();
     }
 
@@ -173,6 +173,7 @@ final class DashboardController {
         settings.setLoadsImagesAutomatically(true);
         settings.setUseWideViewPort(true);
         settings.setLoadWithOverviewMode(false);
+        webView.setInitialScale(100);
         settings.setSupportZoom(false);
         settings.setBuiltInZoomControls(false);
         settings.setDisplayZoomControls(false);
@@ -323,6 +324,12 @@ final class DashboardController {
         int action = event.getAction();
         int code = event.getKeyCode();
         if (code == KeyEvent.KEYCODE_BACK) {
+            if (settingsOpen) {
+                if (action == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
+                    closeSettings();
+                }
+                return true;
+            }
             if (!monthOpen) {
                 return false;
             }
@@ -332,6 +339,24 @@ final class DashboardController {
             return true;
         }
         if (action != KeyEvent.ACTION_DOWN) {
+            return false;
+        }
+        if (settingsOpen) {
+            if (code == KeyEvent.KEYCODE_DPAD_LEFT) {
+                injectKey("seconds-prev");
+                return true;
+            }
+            if (code == KeyEvent.KEYCODE_DPAD_RIGHT) {
+                injectKey("seconds-next");
+                return true;
+            }
+            if (isOk(code) && event.getRepeatCount() == 0) {
+                closeSettings();
+                return true;
+            }
+            if (isDpad(code) || isOk(code)) {
+                return true;
+            }
             return false;
         }
         if (monthOpen && !calendarConfigured()) {
@@ -356,37 +381,126 @@ final class DashboardController {
         if (event.getRepeatCount() > 0) {
             return false;
         }
-        if (isDpad(code)) {
-            focusCalendar();
-            return calendarFocused;
+        if (isOk(code)) {
+            if ("photo".equals(focusTarget)) {
+                openSettings();
+                return true;
+            }
+            if ("calendar".equals(focusTarget)) {
+                openMonth();
+                return true;
+            }
+            return false;
         }
-        if (isOk(code) && calendarFocused) {
-            openMonth();
-            return true;
+        if (isDpad(code)) {
+            moveFocus(code);
+            return focusTarget.length() > 0;
         }
         return false;
     }
 
     boolean consumeBack() {
-        if (!interactive || !monthOpen) {
+        if (!interactive) {
+            return false;
+        }
+        if (settingsOpen) {
+            closeSettings();
+            return true;
+        }
+        if (!monthOpen) {
             return false;
         }
         closeMonth();
         return true;
     }
 
-    private void focusCalendar() {
-        if (!calendarConfigured()) {
-            calendarFocused = false;
+    private void moveFocus(int code) {
+        boolean photo = photosOn();
+        boolean calendar = calendarConfigured();
+        boolean forward = code == KeyEvent.KEYCODE_DPAD_RIGHT || code == KeyEvent.KEYCODE_DPAD_DOWN;
+        if (!photo && !calendar) {
+            focusTarget = "";
             return;
         }
-        calendarFocused = true;
+        if (photo && !calendar) {
+            focusPhoto();
+            return;
+        }
+        if (!photo && calendar) {
+            focusCalendar();
+            return;
+        }
+        if (focusTarget.length() == 0) {
+            if (forward) {
+                focusCalendar();
+            } else {
+                focusPhoto();
+            }
+            return;
+        }
+        if (forward && "photo".equals(focusTarget)) {
+            focusCalendar();
+            return;
+        }
+        if (!forward && "calendar".equals(focusTarget)) {
+            focusPhoto();
+            return;
+        }
+        if ("photo".equals(focusTarget)) {
+            focusPhoto();
+        } else {
+            focusCalendar();
+        }
+    }
+
+    private void focusPhoto() {
+        if (!photosOn()) {
+            focusTarget = "";
+            return;
+        }
+        focusTarget = "photo";
+        injectKey("focus-photo");
+    }
+
+    private void focusCalendar() {
+        if (!calendarConfigured()) {
+            focusTarget = "";
+            return;
+        }
+        focusTarget = "calendar";
         injectKey("focus");
     }
 
-    private void openMonth() {
-        if (!calendarFocused || monthOpen || !calendarConfigured()) {
+    private void openSettings() {
+        if (settingsOpen || !"photo".equals(focusTarget) || !photosOn()) {
             return;
+        }
+        if (monthOpen) {
+            closeMonth();
+        }
+        settingsOpen = true;
+        injectKey("open-settings");
+    }
+
+    private void closeSettings() {
+        if (!settingsOpen) {
+            return;
+        }
+        settingsOpen = false;
+        injectKey("close-settings");
+    }
+
+    private boolean photosOn() {
+        String json = photos.playlistJson();
+        return json != null && json.indexOf("\"enabled\":true") >= 0 && json.indexOf(".jpg") >= 0;
+    }
+
+    private void openMonth() {
+        if (!"calendar".equals(focusTarget) || monthOpen || !calendarConfigured()) {
+            return;
+        }
+        if (settingsOpen) {
+            closeSettings();
         }
         monthOpen = true;
         injectKey("open");
@@ -439,8 +553,13 @@ final class DashboardController {
                     return;
                 }
                 StringBuilder cmd = new StringBuilder("window.__tvKeys=true;");
-                if (calendarFocused) {
+                if ("photo".equals(focusTarget)) {
+                    cmd.append("window.onDashKey&&window.onDashKey('focus-photo');");
+                } else if ("calendar".equals(focusTarget)) {
                     cmd.append("window.onDashKey&&window.onDashKey('focus');");
+                }
+                if (settingsOpen) {
+                    cmd.append("window.onDashKey&&window.onDashKey('open-settings');");
                 }
                 if (monthOpen) {
                     cmd.append("window.onDashKey&&window.onDashKey('open');");

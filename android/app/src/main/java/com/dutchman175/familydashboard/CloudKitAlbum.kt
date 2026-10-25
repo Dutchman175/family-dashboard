@@ -168,23 +168,29 @@ internal object CloudKitAlbum {
             itemType.contains("webp")
     }
 
-    private data class SizedUrl(val url: String, val width: Int, val height: Int)
+    private data class SizedUrl(val url: String, val width: Int, val height: Int, val bytes: Long)
 
     /**
-     * Smallest JPEG whose long edge is at least 1920, otherwise the largest
-     * smaller one. Originals are used only when nothing closer to the screen exists.
+     * Largest JPEG under about 4 MB. HEIC originals are not JPEGs, so they are
+     * skipped and a resJPEG* derivative is used instead. A file over 4 MB is
+     * used only when every smaller JPEG is below 1920px on its long edge.
      */
     private fun pick(fields: JSONObject): SizedUrl? {
-        var bestOver: SizedUrl? = null
-        var bestUnder: SizedUrl? = null
+        val itemType = fields.optJSONObject("itemType")?.optString("value", "")?.lowercase() ?: ""
+        val originalIsJpeg = itemType.contains("jpeg") || itemType.contains("jpg") || itemType.isEmpty()
+        var bestUnderCap: SizedUrl? = null
+        var bestScreen: SizedUrl? = null
         for (prefix in PREFIXES) {
+            if (prefix == "resOriginal" && !originalIsJpeg) {
+                continue
+            }
             val value = fields.optJSONObject(prefix + "Res")?.optJSONObject("value") ?: continue
             val download = value.optString("downloadURL", "")
             if (!allowedDownload(download)) {
                 continue
             }
             val size = jsonLong(value, "size")
-            if (size > SharedStream.MAX_FILE_BYTES) {
+            if (size <= 0L || size > SharedStream.MAX_FILE_BYTES) {
                 continue
             }
             val width = jsonInt(fields.optJSONObject(prefix + "Width"), "value")
@@ -192,21 +198,30 @@ internal object CloudKitAlbum {
             if (width <= 0 || height <= 0) {
                 continue
             }
-            val edge = maxOf(width, height)
-            val item = SizedUrl(download, width, height)
-            if (edge >= SharedStream.TARGET_LONG_EDGE) {
-                val over = bestOver?.let { maxOf(it.width, it.height) } ?: Int.MAX_VALUE
-                if (edge < over) {
-                    bestOver = item
-                }
-            } else {
-                val under = bestUnder?.let { maxOf(it.width, it.height) } ?: -1
-                if (edge > under) {
-                    bestUnder = item
-                }
+            val item = SizedUrl(download, width, height, size)
+            if (size <= SharedStream.MAX_PICK_BYTES && largerThan(item, bestUnderCap)) {
+                bestUnderCap = item
+            }
+            if (maxOf(width, height) >= SharedStream.TARGET_LONG_EDGE && largerThan(item, bestScreen)) {
+                bestScreen = item
             }
         }
-        return bestOver ?: bestUnder
+        if (bestUnderCap != null && maxOf(bestUnderCap.width, bestUnderCap.height) >= SharedStream.TARGET_LONG_EDGE) {
+            return bestUnderCap
+        }
+        return bestScreen ?: bestUnderCap
+    }
+
+    private fun largerThan(candidate: SizedUrl, current: SizedUrl?): Boolean {
+        if (current == null) {
+            return true
+        }
+        val area = candidate.width.toLong() * candidate.height
+        val other = current.width.toLong() * current.height
+        if (area != other) {
+            return area > other
+        }
+        return candidate.bytes > current.bytes
     }
 
     private fun allowedDownload(url: String): Boolean {
