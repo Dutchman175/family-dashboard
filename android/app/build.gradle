@@ -11,8 +11,8 @@ android {
         applicationId "com.dutchman175.familydashboard"
         minSdk 22
         targetSdk 34
-        versionCode 3
-        versionName "1.2.0"
+        versionCode 4
+        versionName "1.2.1"
     }
 
     compileOptions {
@@ -93,6 +93,9 @@ tasks.register("copyDashboardWeb", Copy) {
     from(rootProject.file("../index.html"))
     from(rootProject.file("../styles.css"))
     from(rootProject.file("../app.js"))
+    from(rootProject.file("../manifest.json"))
+    from(rootProject.file("../icon-192.png"))
+    from(rootProject.file("../icon-512.png"))
     into(new File(generatedAssetsDir, "dashboard"))
 }
 

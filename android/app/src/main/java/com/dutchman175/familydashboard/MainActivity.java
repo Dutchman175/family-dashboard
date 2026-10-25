@@ -3,6 +3,7 @@ package com.dutchman175.familydashboard;
 import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.view.WindowManager;
 
@@ -27,6 +28,7 @@ public class MainActivity extends Activity {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         setContentView(R.layout.activity_dashboard);
         hideSystemUi();
+        Log.i(PHOTO_LOG, "onCreate");
         applyLaunchIntent(getIntent());
         controller = new DashboardController(this, findViewById(R.id.root), true);
         controller.start();
@@ -36,6 +38,7 @@ public class MainActivity extends Activity {
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
+        Log.i(PHOTO_LOG, "onNewIntent");
         applyLaunchIntent(intent);
     }
 
@@ -83,6 +86,8 @@ public class MainActivity extends Activity {
         app.getCalendar().applyIntent(intent);
         app.getPhotos().applyIntent(intent);
     }
+
+    private static final String PHOTO_LOG = "FamilyDashPhotos";
 
     private void hideSystemUi() {
         View decor = getWindow().getDecorView();
