@@ -541,6 +541,64 @@
     }
   }
 
+  var calendarEl = document.getElementById("calendar");
+  var calendarListEl = document.getElementById("calendar-list");
+  var calendarNoteEl = document.getElementById("calendar-note");
+
+  function renderCalendar(snapshot) {
+    if (!calendarEl || !calendarListEl || !calendarNoteEl) return;
+    if (!snapshot || !snapshot.configured) {
+      calendarEl.className = "panel panel-calendar";
+      clearNode(calendarListEl);
+      calendarNoteEl.className = "calendar-note";
+      calendarNoteEl.textContent = "";
+      return;
+    }
+    calendarEl.className = "panel panel-calendar is-on";
+    clearNode(calendarListEl);
+    var events = snapshot.events || [];
+    if (!events.length) {
+      var empty = snapshot.loading ? "Loading calendar" : (snapshot.stale ? "" : "Nothing coming up");
+      if (empty) calendarListEl.appendChild(el("p", "calendar-empty", empty));
+    } else {
+      var lastHeading = "";
+      var i;
+      for (i = 0; i < events.length; i++) {
+        var ev = events[i];
+        if (!ev) continue;
+        var heading = ev.heading || "";
+        if (heading !== lastHeading) {
+          calendarListEl.appendChild(el("p", "calendar-day", heading));
+          lastHeading = heading;
+        }
+        var row = el("div", "calendar-row");
+        row.appendChild(el("p", "calendar-time", ev.time || (ev.allDay ? "All day" : "")));
+        row.appendChild(el("p", "calendar-title", ev.title || "Busy"));
+        calendarListEl.appendChild(row);
+      }
+    }
+    if (snapshot.stale) {
+      calendarNoteEl.textContent = "Calendar not updated";
+      calendarNoteEl.className = "calendar-note is-on";
+    } else {
+      calendarNoteEl.textContent = "";
+      calendarNoteEl.className = "calendar-note";
+    }
+  }
+
+  function pullCalendar() {
+    if (!window.FamilyCalendar || typeof window.FamilyCalendar.getSnapshot !== "function") {
+      return;
+    }
+    try {
+      renderCalendar(JSON.parse(window.FamilyCalendar.getSnapshot()));
+    } catch (e) {}
+  }
+
+  window.onCalendarSnapshot = function (snapshot) {
+    renderCalendar(snapshot);
+  };
+
   function start() {
     fitStage();
     updateClock();
@@ -554,6 +612,7 @@
     });
     window.addEventListener("online", fetchWeather);
     fetchWeather();
+    pullCalendar();
   }
 
   if (document.readyState === "loading") {

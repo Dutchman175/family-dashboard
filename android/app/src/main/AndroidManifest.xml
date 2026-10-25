@@ -12,6 +12,7 @@
         android:required="false" />
 
     <application
+        android:name=".DashboardApp"
         android:allowBackup="false"
         android:banner="@drawable/tv_banner"
         android:hardwareAccelerated="true"

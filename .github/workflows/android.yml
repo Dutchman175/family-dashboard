@@ -5,6 +5,9 @@ on:
     branches: [main]
     paths:
       - "android/**"
+      - "index.html"
+      - "styles.css"
+      - "app.js"
       - ".github/workflows/android.yml"
   workflow_dispatch:
 

@@ -1,6 +1,6 @@
 # Family Dashboard for Android TV and Fire TV
 
-A small full-screen app that shows https://dutchman175.github.io/family-dashboard/. There is no browser bar. The screen stays on while the app is open. Back exits.
+A full-screen clock, Lowell weather, and an optional upcoming calendar. The page is inside the APK. The TV does not open a website. Weather still needs the internet (Open-Meteo). The calendar is loaded on the TV from a private iCloud link that is stored only on the device.
 
 The same APK includes a screensaver (Android dream) that shows the dashboard.
 
@@ -10,42 +10,56 @@ The signed release APK is attached to the GitHub release:
 
 https://github.com/Dutchman175/family-dashboard/releases/latest/download/FamilyDashboard.apk
 
-The signing key is `family-dashboard.keystore` in this folder. It is a public sideload key (password `familydashboard`) so a later build can update the installed app. Do not replace the keystore if the app is already installed.
+After the repo is private, download it from a computer that is already logged in with `gh auth login`, then install it with adb. The signing key is `family-dashboard.keystore` in this folder. It is a public sideload key (password `familydashboard`) so a later build can update the installed app. Do not replace the keystore if the app is already installed.
 
-## Install on a Fire TV Stick
+## Install or update from a computer
 
-1. From the home screen, search the Amazon Appstore for **Downloader** (by AFTVnews) and install it. Do not open it yet.
-2. Go to **Settings → My Fire TV → About**. Select the device name at the top and press Select 7 times, until it says you are a developer.
-3. Press Back. Open **Developer options**.
-   - Fire OS 7 or newer: **Install unknown apps → Downloader → On**.
-   - Fire OS 5 or 6: **Apps from Unknown Sources → On**.
-4. Open Downloader. If it asks to access files, choose **Allow**.
-5. Enter this address and choose **Go**:
+Turn on ADB on the TV once:
 
-   `https://github.com/Dutchman175/family-dashboard/releases/latest/download/FamilyDashboard.apk`
+1. **Settings → My Fire TV → About** (on a TiVo: **Settings → Device Preferences → About**). Select the device name, or **Android TV OS build**, and press Select 7 times until developer options turn on.
+2. **Developer options → ADB debugging → On**. On Fire OS 5 or 6 also turn on **Apps from Unknown Sources**. On Fire OS 7 or newer, unknown-app install is per app; adb does not need the Downloader switch.
+3. Note the TV's IP address under **About → Network**.
 
-6. When it finishes, choose **Install**, then **Done**.
-7. Open **Family Dashboard** from **Your Apps & Channels**. It fills the screen. Back leaves the app.
-
-If Downloader is missing from the Install unknown apps list, restart the Fire TV and look again. That is a known Fire OS glitch.
-
-## Install on a TiVo Stream 4K
-
-1. Open the Google Play Store, search for **Downloader** (by AFTVnews), and install it.
-2. Allow it to install apps:
-   - **Settings → Apps → Special app access → Install unknown apps → Downloader → Allow**
-   - On older software: **Settings → Device Preferences → Security & restrictions → Unknown sources**.
-3. Open Downloader, enter the same address as above, and install.
-4. Open **Family Dashboard** from the Apps row.
-
-Some TiVo Stream 4K units updated to Android 12 uninstall Downloader (and some other sideloaded tools) as soon as they are installed. A system app named CoreService does that. If it happens, turn on Developer options (**Settings → Device Preferences → About**, select **Android TV OS build** 7 times), turn on **USB debugging**, then from a computer on the same Wi-Fi run:
+On the computer, install [Android platform-tools](https://developer.android.com/tools/releases/platform-tools). Download `FamilyDashboard.apk` from the release above, then:
 
 ```
-adb connect TIVO_IP_ADDRESS
+adb connect TV_IP
+adb install -r FamilyDashboard.apk
+```
+
+`-r` replaces the copy that is already installed and keeps the calendar link. Open **Family Dashboard** from the apps row. Back leaves the app.
+
+Some TiVo Stream 4K units on Android 12 remove sideloaded apps. A system app named CoreService does that. If the dashboard disappears after it is installed, connect with adb and run:
+
+```
 adb shell pm disable-user com.nes.coreservice
 ```
 
-Install Downloader again, then the dashboard APK. A few people have to run the disable command twice, then reboot, before it sticks.
+Then `adb install -r FamilyDashboard.apk` again. A few people have to run the disable command twice, then reboot, before it sticks.
+
+## Calendar
+
+In the iCloud calendar app, share the Home calendar and copy the public link. It looks like `webcal://...`. Do not put that link in git, in a screenshot, or on a web page. Set it only on the TV:
+
+```
+adb shell am start -n com.dutchman175.familydashboard/.MainActivity --es calendar_url 'webcal://PASTE-THE-LINK-HERE'
+```
+
+`webcal://` is stored as `https://`. The app fetches it about every 15 minutes, including when the screensaver starts, and shows the next 8 events in the coming week. Times are Central Time. Until a link is set, the Upcoming panel stays hidden and the clock and weather use the full width.
+
+To clear the link:
+
+```
+adb shell am start -n com.dutchman175.familydashboard/.MainActivity --es calendar_url ""
+```
+
+If the TV ignores the empty value, use:
+
+```
+adb shell am start -n com.dutchman175.familydashboard/.MainActivity --es calendar_url clear
+```
+
+If iCloud cannot be reached, the last events stay on screen with a small "Calendar not updated" note.
 
 ## Screensaver on a TiVo Stream 4K
 
@@ -118,7 +132,7 @@ If the screensaver never stays set, open the Family Dashboard app and leave it u
 
 ## Build
 
-Java 21 and Android SDK 34.
+Java 21 and Android SDK 34. The Gradle build copies `index.html`, `styles.css`, and `app.js` from the repo root into the APK. Do not keep a second copy of those files under `android/`.
 
 ```
 cd android

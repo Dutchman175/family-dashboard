@@ -1,6 +1,7 @@
 package com.dutchman175.familydashboard;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
 import android.view.WindowManager;
@@ -26,8 +27,16 @@ public class MainActivity extends Activity {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         setContentView(R.layout.activity_dashboard);
         hideSystemUi();
+        applyCalendarIntent(getIntent());
         controller = new DashboardController(this, findViewById(R.id.root), true);
         controller.start();
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        applyCalendarIntent(intent);
     }
 
     @Override
@@ -67,6 +76,10 @@ public class MainActivity extends Activity {
     @Override
     public void onBackPressed() {
         finish();
+    }
+
+    private void applyCalendarIntent(Intent intent) {
+        ((DashboardApp) getApplication()).getCalendar().applyIntent(intent);
     }
 
     private void hideSystemUi() {

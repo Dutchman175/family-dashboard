@@ -1,11 +1,7 @@
 package com.dutchman175.familydashboard;
 
-import android.content.BroadcastReceiver;
 import android.content.Context;
-import android.content.Intent;
-import android.content.IntentFilter;
-import android.net.ConnectivityManager;
-import android.net.NetworkInfo;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
@@ -15,35 +11,43 @@ import android.view.ViewParent;
 import android.webkit.SslErrorHandler;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.net.http.SslError;
 
+import androidx.webkit.WebViewAssetLoader;
+
+import java.io.InputStream;
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * Full-screen dashboard WebView shared by the launcher activity and the screensaver.
- * The page itself draws the clock and the weather. This class only loads it,
- * keeps it full screen, and retries when the network fails.
+ * The page is bundled in the APK. Weather is the only part that uses the network.
  */
 final class DashboardController {
-    static final String DASHBOARD_URL = "https://dutchman175.github.io/family-dashboard/";
-    private static final String DASHBOARD_PREFIX = "https://dutchman175.github.io/family-dashboard";
+    private static final String DASHBOARD_URL =
+            "https://appassets.androidplatform.net/assets/dashboard/index.html";
+    private static final String DASHBOARD_PREFIX =
+            "https://appassets.androidplatform.net/assets/dashboard";
     private static final long RETRY_MS = 15000L;
 
-    private final Context context;
     private final WebView webView;
     private final View errorView;
     private final View retryButton;
     private final boolean interactive;
     private final Handler handler;
     private final Runnable retryRunnable;
+    private final WebViewAssetLoader assetLoader;
+    private final CalendarRepository calendar;
+    private final CalendarRepository.SnapshotListener snapshotListener;
 
     private boolean destroyed;
     private boolean loadFailed;
-    private BroadcastReceiver networkReceiver;
 
     DashboardController(Context context, View root, boolean interactive) {
-        this.context = context;
         this.interactive = interactive;
         this.webView = root.findViewById(R.id.web);
         this.errorView = root.findViewById(R.id.error);
@@ -55,6 +59,17 @@ final class DashboardController {
                 if (!destroyed && errorView.getVisibility() == View.VISIBLE) {
                     load();
                 }
+            }
+        };
+        Context appContext = context.getApplicationContext();
+        this.assetLoader = new WebViewAssetLoader.Builder()
+                .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(appContext))
+                .build();
+        this.calendar = ((DashboardApp) appContext).getCalendar();
+        this.snapshotListener = new CalendarRepository.SnapshotListener() {
+            @Override
+            public void onSnapshot(String json) {
+                pushSnapshot(json);
             }
         };
         if (!interactive) {
@@ -71,7 +86,8 @@ final class DashboardController {
     }
 
     void start() {
-        registerNetwork();
+        calendar.addListener(snapshotListener);
+        calendar.requestRefresh();
         load();
     }
 
@@ -90,9 +106,10 @@ final class DashboardController {
     void destroy() {
         destroyed = true;
         handler.removeCallbacks(retryRunnable);
-        unregisterNetwork();
+        calendar.removeListener(snapshotListener);
         webView.setWebViewClient(null);
         webView.stopLoading();
+        webView.removeJavascriptInterface("FamilyCalendar");
         ViewParent parent = webView.getParent();
         if (parent instanceof ViewGroup) {
             ((ViewGroup) parent).removeView(webView);
@@ -129,12 +146,17 @@ final class DashboardController {
         settings.setAllowFileAccess(false);
         settings.setAllowContentAccess(false);
         settings.setMediaPlaybackRequiresUserGesture(false);
+        settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
+        if (Build.VERSION.SDK_INT >= 21) {
+            settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+        }
         if (Build.VERSION.SDK_INT >= 33) {
             settings.setAlgorithmicDarkeningAllowed(false);
         } else if (Build.VERSION.SDK_INT >= 29) {
             settings.setForceDark(WebSettings.FORCE_DARK_OFF);
         }
 
+        webView.addJavascriptInterface(new CalendarBridge(calendar), "FamilyCalendar");
         if (Build.VERSION.SDK_INT >= 23) {
             webView.setWebViewClient(new ModernClient());
         } else {
@@ -150,14 +172,15 @@ final class DashboardController {
 
         @Override
         public void onPageFinished(WebView view, String url) {
-            if (!loadFailed && isDashboardUrl(url)) {
+            if (!loadFailed && isMainDocument(url)) {
                 hideError();
+                pushSnapshot(calendar.snapshotJson());
             }
         }
 
         @Override
         public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
-            if (isDashboardUrl(failingUrl)) {
+            if (isMainDocument(failingUrl)) {
                 failLoad();
             }
         }
@@ -165,12 +188,28 @@ final class DashboardController {
         @Override
         public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
             handler.cancel();
-            failLoad();
+            if (error != null && isMainDocument(error.getUrl())) {
+                failLoad();
+            }
         }
 
         @Override
         public boolean shouldOverrideUrlLoading(WebView view, String url) {
             return !isDashboardUrl(url);
+        }
+
+        @Override
+        @SuppressWarnings("deprecation")
+        public WebResourceResponse shouldInterceptRequest(WebView view, String url) {
+            return interceptUrl(url);
+        }
+
+        @Override
+        public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+            if (request == null || request.getUrl() == null) {
+                return null;
+            }
+            return interceptUrl(request.getUrl().toString());
         }
     }
 
@@ -187,7 +226,10 @@ final class DashboardController {
         }
 
         @Override
-        public void onReceivedHttpError(WebView view, WebResourceRequest request, android.webkit.WebResourceResponse errorResponse) {
+        public void onReceivedHttpError(
+                WebView view,
+                WebResourceRequest request,
+                WebResourceResponse errorResponse) {
             if (request != null && request.isForMainFrame()) {
                 int status = errorResponse == null ? 0 : errorResponse.getStatusCode();
                 if (status >= 400) {
@@ -205,20 +247,54 @@ final class DashboardController {
         }
     }
 
+    private WebResourceResponse interceptUrl(String url) {
+        if (url == null) {
+            return null;
+        }
+        WebResourceResponse response = assetLoader.shouldInterceptRequest(Uri.parse(url));
+        return uncached(response);
+    }
+
+    private WebResourceResponse uncached(WebResourceResponse response) {
+        if (response == null) {
+            return null;
+        }
+        InputStream data = response.getData();
+        if (data == null) {
+            return null;
+        }
+        Map<String, String> headers = new HashMap<String, String>();
+        headers.put("Cache-Control", "no-store");
+        String mime = response.getMimeType();
+        if (mime == null) {
+            mime = "application/octet-stream";
+        }
+        return new WebResourceResponse(mime, response.getEncoding(), 200, "OK", headers, data);
+    }
+
+    private void pushSnapshot(final String json) {
+        if (destroyed || json == null || json.length() == 0 || json.charAt(0) != '{') {
+            return;
+        }
+        handler.post(new Runnable() {
+            @Override
+            public void run() {
+                if (destroyed) {
+                    return;
+                }
+                webView.evaluateJavascript(
+                        "window.onCalendarSnapshot&&window.onCalendarSnapshot(" + json + ")",
+                        null);
+            }
+        });
+    }
+
     private void load() {
         if (destroyed) {
             return;
         }
         handler.removeCallbacks(retryRunnable);
         loadFailed = false;
-        WebSettings settings = webView.getSettings();
-        if (isOnline()) {
-            settings.setCacheMode(WebSettings.LOAD_DEFAULT);
-        } else {
-            settings.setCacheMode(WebSettings.LOAD_CACHE_ELSE_NETWORK);
-            showError();
-            scheduleRetry();
-        }
         webView.loadUrl(DASHBOARD_URL);
     }
 
@@ -249,53 +325,26 @@ final class DashboardController {
         errorView.setVisibility(View.GONE);
     }
 
-    private boolean isDashboardUrl(String url) {
+    private static boolean isDashboardUrl(String url) {
+        return url != null && url.startsWith(DASHBOARD_PREFIX);
+    }
+
+    private static boolean isMainDocument(String url) {
         if (url == null) {
             return false;
         }
-        return url.equals(DASHBOARD_PREFIX)
-                || url.startsWith(DASHBOARD_PREFIX + "/")
-                || url.startsWith(DASHBOARD_PREFIX + "?");
-    }
-
-    private boolean isOnline() {
-        ConnectivityManager cm = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
-        if (cm == null) {
-            return false;
+        int cut = url.length();
+        int query = url.indexOf('?');
+        if (query >= 0) {
+            cut = query;
         }
-        NetworkInfo info = cm.getActiveNetworkInfo();
-        return info != null && info.isConnected();
-    }
-
-    private void registerNetwork() {
-        if (networkReceiver != null) {
-            return;
+        int hash = url.indexOf('#');
+        if (hash >= 0 && hash < cut) {
+            cut = hash;
         }
-        networkReceiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context ctx, Intent intent) {
-                if (!destroyed && isOnline() && errorView.getVisibility() == View.VISIBLE) {
-                    load();
-                }
-            }
-        };
-        IntentFilter filter = new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION);
-        if (Build.VERSION.SDK_INT >= 33) {
-            context.registerReceiver(networkReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
-        } else {
-            context.registerReceiver(networkReceiver, filter);
-        }
-    }
-
-    private void unregisterNetwork() {
-        if (networkReceiver == null) {
-            return;
-        }
-        try {
-            context.unregisterReceiver(networkReceiver);
-        } catch (IllegalArgumentException ignored) {
-            // Already unregistered.
-        }
-        networkReceiver = null;
+        String bare = url.substring(0, cut);
+        return bare.endsWith("/dashboard/index.html")
+                || bare.endsWith("/dashboard/")
+                || bare.endsWith("/dashboard");
     }
 }
