@@ -20,11 +20,11 @@
   var statusEl = document.getElementById("weather-status");
   var statusTitleEl = document.getElementById("weather-status-title");
   var statusBodyEl = document.getElementById("weather-status-body");
-  var bodyEl = document.getElementById("weather-body");
-  var currentEl = document.getElementById("weather-current");
-  var forecastEl = document.getElementById("weather-forecast");
+  var boardEl = document.getElementById("combined-body");
 
   var hasWeather = false;
+  var lastWeather = null;
+  var lastSnapshot = null;
   var requestInFlight = false;
   var weatherTimer = null;
 
@@ -141,6 +141,17 @@
       }
     } catch (e2) {}
     return "";
+  }
+
+  function weekdayLong(iso) {
+    var bits = String(iso || "").split("-");
+    if (bits.length !== 3) return "";
+    var y = parseInt(bits[0], 10);
+    var m = parseInt(bits[1], 10);
+    var d = parseInt(bits[2], 10);
+    if (!y || !m || !d) return "";
+    var names = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    return names[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
   }
 
   function weekdayShort(iso) {
@@ -392,21 +403,20 @@
     if (statusTitleEl) statusTitleEl.textContent = title;
     if (statusBodyEl) statusBodyEl.textContent = body;
     if (statusEl) statusEl.className = "weather-status";
-    if (bodyEl) bodyEl.className = "weather-body";
+    if (boardEl) boardEl.className = "combined-body";
   }
 
   function showWeather() {
     if (statusEl) statusEl.className = "weather-status is-hidden";
-    if (bodyEl) bodyEl.className = "weather-body is-on";
+    if (boardEl) boardEl.className = "combined-body is-on";
   }
 
   function renderWeatherError() {
     if (hasWeather) {
-      var note = document.getElementById("weather-note");
-      if (!note && currentEl) {
-        note = el("p", "weather-note", "Couldn't refresh the forecast. Showing the last update.");
+      if (boardEl && !document.getElementById("weather-note")) {
+        var note = el("p", "combo-note", "Couldn't refresh the forecast. Showing the last update.");
         note.id = "weather-note";
-        currentEl.appendChild(note);
+        boardEl.appendChild(note);
       }
       return;
     }
@@ -436,60 +446,99 @@
     if (count > 5) count = 5;
     if (count < 1) throw new Error("no days");
 
-    var today = "";
-    if (current.time && String(current.time).length >= 10) today = String(current.time).substring(0, 10);
-    if (!today) today = chicagoDateISO(new Date());
-
-    clearNode(currentEl);
-    clearNode(forecastEl);
-
-    currentEl.appendChild(el("p", "kicker", "Lowell, Indiana"));
-    var main = el("div", "now-main");
-    main.appendChild(weatherIcon(iconKind(code, isDaytime(current))));
-    main.appendChild(el("p", "temp", formatTemp(temp)));
-    currentEl.appendChild(main);
-    currentEl.appendChild(el("p", "condition", describeCode(code)));
-
-    var high0 = asNum(highs[0]);
-    var low0 = asNum(lows[0]);
-    currentEl.appendChild(el("p", "detail detail-first", "High " + formatTemp(high0)));
-    currentEl.appendChild(el("p", "detail", "Low " + formatTemp(low0)));
-    if (wind !== null) {
-      currentEl.appendChild(el("p", "detail", "Wind " + roundAway(wind) + " mph"));
-    }
-    var updated = formatApiTime(current.time);
-    var source = updated ? "Updated " + updated + " \u00B7 open-meteo.com" : "Weather from open-meteo.com";
-    currentEl.appendChild(el("p", "updated", source));
-
-    forecastEl.appendChild(el("p", "kicker", "Next days"));
-    var table = el("div", "forecast-table");
-    var labels = el("div", "forecast-labels");
-    labels.appendChild(el("div", "slot-name", "Day"));
-    labels.appendChild(el("div", "slot-icon"));
-    labels.appendChild(el("div", "slot-high", "High"));
-    labels.appendChild(el("div", "slot-low", "Low"));
-    table.appendChild(labels);
-
-    var i;
-    for (i = 0; i < count; i++) {
-      var dayHigh = asNum(highs[i]);
-      var dayLow = asNum(lows[i]);
-      var dayCode = parseInt(codes[i], 10);
-      if (isNaN(dayCode)) dayCode = 3;
-      var name = days[i] === today ? "Today" : weekdayShort(days[i]);
-      var col = el("div", "forecast-day");
-      col.setAttribute("aria-label", name + ", high " + formatTemp(dayHigh) + ", low " + formatTemp(dayLow) + ", " + describeCode(dayCode));
-      col.appendChild(el("div", "slot-name", name));
-      var iconSlot = el("div", "slot-icon");
-      iconSlot.appendChild(weatherIcon(iconKind(dayCode, true)));
-      col.appendChild(iconSlot);
-      col.appendChild(el("div", "slot-high", formatTemp(dayHigh)));
-      col.appendChild(el("div", "slot-low", formatTemp(dayLow)));
-      table.appendChild(col);
-    }
-    forecastEl.appendChild(table);
-    showWeather();
+    lastWeather = {
+      temp: temp,
+      code: code,
+      wind: wind,
+      daytime: isDaytime(current),
+      updated: formatApiTime(current.time),
+      days: days.slice(0, count),
+      highs: highs.slice(0, count),
+      lows: lows.slice(0, count),
+      codes: codes.slice(0, count)
+    };
+    paintCombined();
     hasWeather = true;
+  }
+
+  function dayHeading(iso, index) {
+    if (index === 0) return "Today";
+    if (index === 1) return "Tomorrow";
+    return weekdayLong(iso);
+  }
+
+  function eventsOn(iso) {
+    var found = [];
+    var events = lastSnapshot && lastSnapshot.configured ? (lastSnapshot.events || []) : null;
+    if (!events) return null;
+    var i;
+    for (i = 0; i < events.length; i++) {
+      if (events[i] && events[i].day === iso) found.push(events[i]);
+    }
+    return found;
+  }
+
+  function paintCombined() {
+    if (!boardEl || !lastWeather) return;
+    var weather = lastWeather;
+    clearNode(boardEl);
+
+    var now = el("div", "combo-now");
+    now.appendChild(weatherIcon(iconKind(weather.code, weather.daytime)));
+    var text = el("div", "combo-now-text");
+    text.appendChild(el("p", "kicker", "Lowell, Indiana"));
+    var line = el("div", "combo-now-line");
+    line.appendChild(el("p", "combo-temp", formatTemp(weather.temp)));
+    line.appendChild(el("p", "combo-condition", describeCode(weather.code)));
+    text.appendChild(line);
+    var high0 = asNum(weather.highs[0]);
+    var low0 = asNum(weather.lows[0]);
+    var meta = "High " + formatTemp(high0) + "   Low " + formatTemp(low0);
+    if (weather.wind !== null) meta = "Wind " + roundAway(weather.wind) + " mph   ·   " + meta;
+    if (weather.updated) meta = meta + "   ·   Updated " + weather.updated;
+    text.appendChild(el("p", "combo-meta", meta));
+    now.appendChild(text);
+    boardEl.appendChild(now);
+
+    var row = el("div", "combo-days");
+    var i;
+    for (i = 0; i < weather.days.length; i++) {
+      var iso = weather.days[i];
+      var dayHigh = asNum(weather.highs[i]);
+      var dayLow = asNum(weather.lows[i]);
+      var dayCode = parseInt(weather.codes[i], 10);
+      if (isNaN(dayCode)) dayCode = 3;
+      var name = dayHeading(iso, i);
+      var col = el("div", "combo-day");
+      col.appendChild(el("p", "combo-day-name", name));
+      col.appendChild(weatherIcon(iconKind(dayCode, true)));
+      col.appendChild(el("p", "combo-high", formatTemp(dayHigh)));
+      col.appendChild(el("p", "combo-low", formatTemp(dayLow)));
+
+      var list = eventsOn(iso);
+      if (list) {
+        var events = el("div", "combo-events");
+        if (!list.length) {
+          events.appendChild(el("p", "combo-empty", "Nothing on"));
+        } else {
+          var j;
+          for (j = 0; j < list.length; j++) {
+            var ev = list[j];
+            var item = el("div", "combo-event");
+            item.appendChild(el("p", "combo-event-time", ev.time || (ev.allDay ? "All day" : "")));
+            item.appendChild(el("p", "combo-event-title", ev.title || "Busy"));
+            events.appendChild(item);
+          }
+        }
+        col.appendChild(events);
+      }
+      row.appendChild(col);
+    }
+    boardEl.appendChild(row);
+    if (lastSnapshot && lastSnapshot.configured && lastSnapshot.stale) {
+      boardEl.appendChild(el("p", "combo-note", "Calendar not updated"));
+    }
+    showWeather();
   }
 
   function scheduleWeather(delay) {
@@ -541,49 +590,9 @@
     }
   }
 
-  var calendarEl = document.getElementById("calendar");
-  var calendarListEl = document.getElementById("calendar-list");
-  var calendarNoteEl = document.getElementById("calendar-note");
-
   function renderCalendar(snapshot) {
-    if (!calendarEl || !calendarListEl || !calendarNoteEl) return;
-    if (!snapshot || !snapshot.configured) {
-      calendarEl.className = "panel panel-calendar";
-      clearNode(calendarListEl);
-      calendarNoteEl.className = "calendar-note";
-      calendarNoteEl.textContent = "";
-      return;
-    }
-    calendarEl.className = "panel panel-calendar is-on";
-    clearNode(calendarListEl);
-    var events = snapshot.events || [];
-    if (!events.length) {
-      var empty = snapshot.loading ? "Loading calendar" : (snapshot.stale ? "" : "Nothing coming up");
-      if (empty) calendarListEl.appendChild(el("p", "calendar-empty", empty));
-    } else {
-      var lastHeading = "";
-      var i;
-      for (i = 0; i < events.length; i++) {
-        var ev = events[i];
-        if (!ev) continue;
-        var heading = ev.heading || "";
-        if (heading !== lastHeading) {
-          calendarListEl.appendChild(el("p", "calendar-day", heading));
-          lastHeading = heading;
-        }
-        var row = el("div", "calendar-row");
-        row.appendChild(el("p", "calendar-time", ev.time || (ev.allDay ? "All day" : "")));
-        row.appendChild(el("p", "calendar-title", ev.title || "Busy"));
-        calendarListEl.appendChild(row);
-      }
-    }
-    if (snapshot.stale) {
-      calendarNoteEl.textContent = "Calendar not updated";
-      calendarNoteEl.className = "calendar-note is-on";
-    } else {
-      calendarNoteEl.textContent = "";
-      calendarNoteEl.className = "calendar-note";
-    }
+    lastSnapshot = snapshot || null;
+    paintCombined();
   }
 
   function pullCalendar() {
