@@ -25,7 +25,8 @@ import java.util.Map;
 
 /**
  * Full-screen dashboard WebView shared by the launcher activity and the screensaver.
- * The page is bundled in the APK. Weather is the only part that uses the network.
+ * The page is bundled in the APK. Weather and the photo album use the network.
+ * Cached photos are served from app storage, one file at a time.
  */
 final class DashboardController {
     private static final String DASHBOARD_URL =
@@ -43,6 +44,8 @@ final class DashboardController {
     private final WebViewAssetLoader assetLoader;
     private final CalendarRepository calendar;
     private final CalendarRepository.SnapshotListener snapshotListener;
+    private final PhotoAlbumRepository photos;
+    private final PhotoAlbumRepository.PlaylistListener playlistListener;
 
     private boolean destroyed;
     private boolean loadFailed;
@@ -62,14 +65,23 @@ final class DashboardController {
             }
         };
         Context appContext = context.getApplicationContext();
+        DashboardApp app = (DashboardApp) appContext;
+        this.photos = app.getPhotos();
         this.assetLoader = new WebViewAssetLoader.Builder()
                 .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(appContext))
+                .addPathHandler("/photos/", new PhotoFileHandler(photos.photoDirectory()))
                 .build();
-        this.calendar = ((DashboardApp) appContext).getCalendar();
+        this.calendar = app.getCalendar();
         this.snapshotListener = new CalendarRepository.SnapshotListener() {
             @Override
             public void onSnapshot(String json) {
                 pushSnapshot(json);
+            }
+        };
+        this.playlistListener = new PhotoAlbumRepository.PlaylistListener() {
+            @Override
+            public void onPlaylist(String json) {
+                pushPlaylist(json);
             }
         };
         if (!interactive) {
@@ -88,6 +100,8 @@ final class DashboardController {
     void start() {
         calendar.addListener(snapshotListener);
         calendar.requestRefresh();
+        photos.addListener(playlistListener);
+        photos.requestRefresh();
         load();
     }
 
@@ -107,9 +121,11 @@ final class DashboardController {
         destroyed = true;
         handler.removeCallbacks(retryRunnable);
         calendar.removeListener(snapshotListener);
+        photos.removeListener(playlistListener);
         webView.setWebViewClient(null);
         webView.stopLoading();
         webView.removeJavascriptInterface("FamilyCalendar");
+        webView.removeJavascriptInterface("FamilyPhotos");
         ViewParent parent = webView.getParent();
         if (parent instanceof ViewGroup) {
             ((ViewGroup) parent).removeView(webView);
@@ -157,6 +173,7 @@ final class DashboardController {
         }
 
         webView.addJavascriptInterface(new CalendarBridge(calendar), "FamilyCalendar");
+        webView.addJavascriptInterface(new PhotoBridge(photos), "FamilyPhotos");
         if (Build.VERSION.SDK_INT >= 23) {
             webView.setWebViewClient(new ModernClient());
         } else {
@@ -175,6 +192,7 @@ final class DashboardController {
             if (!loadFailed && isMainDocument(url)) {
                 hideError();
                 pushSnapshot(calendar.snapshotJson());
+                pushPlaylist(photos.playlistJson());
             }
         }
 
@@ -284,6 +302,23 @@ final class DashboardController {
                 }
                 webView.evaluateJavascript(
                         "window.onCalendarSnapshot&&window.onCalendarSnapshot(" + json + ")",
+                        null);
+            }
+        });
+    }
+
+    private void pushPlaylist(final String json) {
+        if (destroyed || json == null || json.length() == 0 || json.charAt(0) != '{') {
+            return;
+        }
+        handler.post(new Runnable() {
+            @Override
+            public void run() {
+                if (destroyed) {
+                    return;
+                }
+                webView.evaluateJavascript(
+                        "window.onPhotoPlaylist&&window.onPhotoPlaylist(" + json + ")",
                         null);
             }
         });

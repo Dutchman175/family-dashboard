@@ -61,6 +61,28 @@ adb shell am start -n com.dutchman175.familydashboard/.MainActivity --es calenda
 
 If iCloud cannot be reached, the last events stay on screen with a small "Calendar not updated" note.
 
+## Photo slideshow
+
+Share an iCloud album and copy its Public Website link. It looks like `https://www.icloud.com/sharedalbum/#TOKEN`. Do not put that link in git, in a screenshot, or in the web page. Set it only on the TV. The quotes matter, because `#` would otherwise be treated as a comment:
+
+```
+adb shell "am start -n com.dutchman175.familydashboard/.MainActivity --es photo_album_url 'https://www.icloud.com/sharedalbum/#PASTE-THE-TOKEN'"
+```
+
+The app stores the album token in its private storage, downloads a screen-sized copy of each photo (not the original), and keeps those files on the device. The slideshow crossfades about every 18 seconds, including in the screensaver. It refreshes the album about every 45 minutes. Until a link is set, or if no photo loads, the dashboard looks the same as before: dark background, clock, Lowell weather, and Upcoming.
+
+To clear the album:
+
+```
+adb shell am start -n com.dutchman175.familydashboard/.MainActivity --es photo_album_url ""
+```
+
+If the TV ignores the empty value, use:
+
+```
+adb shell am start -n com.dutchman175.familydashboard/.MainActivity --es photo_album_url clear
+```
+
 ## Screensaver on a TiVo Stream 4K
 
 1. Install the app first.

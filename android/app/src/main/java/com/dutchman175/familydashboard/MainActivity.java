@@ -27,7 +27,7 @@ public class MainActivity extends Activity {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         setContentView(R.layout.activity_dashboard);
         hideSystemUi();
-        applyCalendarIntent(getIntent());
+        applyLaunchIntent(getIntent());
         controller = new DashboardController(this, findViewById(R.id.root), true);
         controller.start();
     }
@@ -36,7 +36,7 @@ public class MainActivity extends Activity {
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
-        applyCalendarIntent(intent);
+        applyLaunchIntent(intent);
     }
 
     @Override
@@ -78,8 +78,10 @@ public class MainActivity extends Activity {
         finish();
     }
 
-    private void applyCalendarIntent(Intent intent) {
-        ((DashboardApp) getApplication()).getCalendar().applyIntent(intent);
+    private void applyLaunchIntent(Intent intent) {
+        DashboardApp app = (DashboardApp) getApplication();
+        app.getCalendar().applyIntent(intent);
+        app.getPhotos().applyIntent(intent);
     }
 
     private void hideSystemUi() {

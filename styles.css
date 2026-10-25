@@ -403,3 +403,60 @@ p {
 .calendar-note.is-on {
   display: block;
 }
+
+.photo-layer {
+  display: none;
+  position: absolute;
+  top: -54px;
+  left: -96px;
+  width: 1920px;
+  height: 1080px;
+  overflow: hidden;
+  z-index: 0;
+}
+
+.dashboard.has-photo .photo-layer {
+  display: block;
+}
+
+.dashboard.has-photo {
+  background-color: transparent;
+  background-image: none;
+}
+
+.photo-img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  opacity: 0;
+  z-index: 0;
+  -webkit-transition: opacity 1400ms linear;
+  transition: opacity 1400ms linear;
+}
+
+.photo-img.is-on {
+  opacity: 1;
+}
+
+.photo-scrim {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1920px;
+  height: 1080px;
+  z-index: 1;
+  background-image: linear-gradient(180deg, rgba(14, 19, 27, 0.84) 0%, rgba(14, 19, 27, 0.34) 36%, rgba(14, 19, 27, 0.5) 68%, rgba(14, 19, 27, 0.86) 100%);
+}
+
+.dashboard.has-photo .panel-clock,
+.dashboard.has-photo .panel-row {
+  position: relative;
+  z-index: 2;
+}
+
+.dashboard.has-photo .clock,
+.dashboard.has-photo .ampm,
+.dashboard.has-photo .date,
+.dashboard.has-photo .zone {
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.45);
+}
