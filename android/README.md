@@ -73,7 +73,7 @@ adb shell am start -n com.dutchman175.familydashboard/.MainActivity --es photo_a
 adb shell "am start -n com.dutchman175.familydashboard/.MainActivity --es photo_album_url 'https://www.icloud.com/sharedalbum/#PASTE-THE-TOKEN'"
 ```
 
-The app stores the album token in its private storage, downloads a screen-sized copy of each photo (not the original), and keeps those files on the device. The slideshow crossfades about every 18 seconds, including in the screensaver. It refreshes the album about every 45 minutes. Until a link is set, or if no photo loads, the dashboard looks the same as before: dark background, clock, Lowell weather, and Upcoming.
+The app stores the album token in its private storage, downloads a screen-sized copy of each photo (not the original), and keeps those files on the device. The slideshow crossfades about every 18 seconds, including in the screensaver. It refreshes the album about every 45 minutes. With an album, the photo fills a large panel on the left and the clock, weather, and Upcoming stack in a narrower column on the right. Until a link is set, or if no photo loads, the dashboard looks the same as before: dark background, large clock, Lowell weather, and Upcoming side by side.
 
 To clear the album:
 

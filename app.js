@@ -547,8 +547,10 @@
   var calendarEl = document.getElementById("calendar");
   var calendarListEl = document.getElementById("calendar-list");
   var calendarNoteEl = document.getElementById("calendar-note");
+  var lastCalendarSnapshot = null;
 
   function renderCalendar(snapshot) {
+    lastCalendarSnapshot = snapshot;
     if (!calendarEl || !calendarListEl || !calendarNoteEl) return;
     if (!snapshot || !snapshot.configured) {
       calendarEl.className = "panel panel-calendar";
@@ -669,8 +671,17 @@
 
   function setPhotoPanel(on) {
     if (!photoPanel) return;
+    var wantDash = on ? "dashboard has-photo" : "dashboard";
+    var layoutChanged = !dashEl || dashEl.className !== wantDash;
     photoPanel.className = on ? "panel panel-photo is-on" : "panel panel-photo";
     photoPanel.setAttribute("aria-hidden", on ? "false" : "true");
+    if (dashEl) dashEl.className = wantDash;
+    if (layoutChanged) {
+      if (lastCalendarSnapshot) renderCalendar(lastCalendarSnapshot);
+      else fitCalendar();
+    }
+    if (photoA && photoA.className.indexOf("is-on") >= 0) placeCover(photoA);
+    if (photoB && photoB.className.indexOf("is-on") >= 0) placeCover(photoB);
   }
 
   function stopPhotos() {
@@ -690,7 +701,6 @@
       photoB.className = "photo-img";
       photoB.removeAttribute("src");
     }
-    if (dashEl) dashEl.className = "dashboard";
     setPhotoPanel(false);
   }
 
