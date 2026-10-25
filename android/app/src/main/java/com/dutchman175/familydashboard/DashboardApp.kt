@@ -9,11 +9,16 @@ class DashboardApp : Application() {
     lateinit var photos: PhotoAlbumRepository
         private set
 
+    lateinit var messages: MessageRepository
+        private set
+
     override fun onCreate() {
         super.onCreate()
         calendar = CalendarRepository(this)
         calendar.start()
         photos = PhotoAlbumRepository(this)
         photos.start()
+        messages = MessageRepository(this)
+        messages.start()
     }
 }

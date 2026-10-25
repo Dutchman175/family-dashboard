@@ -1,6 +1,6 @@
 # Family Dashboard for Android TV and Fire TV
 
-A full-screen clock, Lowell weather, and an optional upcoming calendar. The page is inside the APK. The TV does not open a website. Weather still needs the internet (Open-Meteo). The calendar is loaded on the TV from a private iCloud link that is stored only on the device.
+A full-screen clock, Lowell weather, an optional upcoming calendar, an optional photo slideshow, and an optional message board. The page is inside the APK. The TV does not open a website. Weather still needs the internet (Open-Meteo). The calendar and the photo album are loaded on the TV from private iCloud links that are stored only on the device. Messages come from a private ntfy topic, also stored only on the device.
 
 The same APK includes a screensaver (Android dream) that shows the dashboard.
 
@@ -86,6 +86,56 @@ If the TV ignores the empty value, use:
 ```
 adb shell am start -n com.dutchman175.familydashboard/.MainActivity --es photo_album_url clear
 ```
+
+## Message board
+
+Messages show in a box on the right, between the weather and Upcoming. The box stays hidden when there are no messages. Each message shows the sender and how long ago, for example `Cassie, 5 min ago`, then the text. Messages disappear after 24 hours. A new one briefly outlines the box in gold.
+
+The TV listens to one topic on the free public service ntfy.sh. There is no account. The topic name is long and random, and it works like a password: anyone who knows it can post. Treat it like the calendar link and the album link. Do not put the real name in git, in a screenshot, in a chat, or in a log. The examples below use `PASTE-THE-TOPIC-NAME`. Replace that with a name you make up, 16 to 64 characters, using only letters, numbers, underscores, and hyphens.
+
+Set it on the TV:
+
+```
+adb shell am start -n com.dutchman175.familydashboard/.MainActivity --es message_topic 'PASTE-THE-TOPIC-NAME'
+```
+
+The app keeps a live connection while the dashboard or the screensaver is on screen. If the connection drops, it retries with a longer pause between tries. When the TV turns on, it also picks up messages from the last 24 hours.
+
+To turn the message board off:
+
+```
+adb shell am start -n com.dutchman175.familydashboard/.MainActivity --es message_topic ""
+```
+
+If the TV ignores the empty value, use:
+
+```
+adb shell am start -n com.dutchman175.familydashboard/.MainActivity --es message_topic clear
+```
+
+To wipe the messages that are on screen without turning the board off, send a message whose text is exactly `clear`.
+
+### iPhone Shortcut
+
+Andy and Cassie each build this once. The only difference is the Title, which is the name that shows on the TV. Use your own topic where the steps say `PASTE-THE-TOPIC-NAME`.
+
+1. Open the Shortcuts app.
+2. Tap the + button to make a new shortcut.
+3. Tap Add Action, search for Ask for Input, and add it.
+4. Set the prompt to `Message`. Leave Input Type as Text.
+5. Tap Add Action, search for Get Contents of URL, and add it.
+6. In the URL field, enter `https://ntfy.sh/PASTE-THE-TOPIC-NAME`.
+7. Tap Show More.
+8. Set Method to POST.
+9. Under Headers, tap Add new header. Set the name to `Title` and the value to the sender's name, `Andy` or `Cassie`.
+10. Under Request Body, choose Text. Tap the text field, then tap Provided Input so the shortcut sends whatever was typed in step 4.
+11. Tap Done. Name the shortcut `Message the TV`.
+12. Long-press the shortcut, tap Share, then tap Add to Home Screen. Add it.
+13. To send with Siri, say "Hey Siri, Message the TV", then say the message.
+
+The text can be about 200 characters. The TV keeps it as plain text. Sending the single word `clear` removes every message currently on the TV.
+
+The free ntfy app from the App Store is another way to post. Install ntfy, choose the publish action, set the topic to the same secret name, set the title to `Andy` or `Cassie`, and type the message. You do not have to subscribe to the topic to publish.
 
 ## Screensaver on a TiVo Stream 4K
 
