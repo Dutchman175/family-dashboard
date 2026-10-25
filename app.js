@@ -41,6 +41,9 @@
     dashEl.style.top = y + "px";
     dashEl.style.webkitTransform = transform;
     dashEl.style.transform = transform;
+    fitCalendar();
+    if (photoA && photoA.className.indexOf("is-on") >= 0) placeCover(photoA);
+    if (photoB && photoB.className.indexOf("is-on") >= 0) placeCover(photoB);
   }
 
   function renderZonedClock(now) {
@@ -584,6 +587,22 @@
       calendarNoteEl.textContent = "";
       calendarNoteEl.className = "calendar-note";
     }
+    fitCalendar();
+  }
+
+  function fitCalendar() {
+    if (!calendarEl || !calendarListEl || calendarEl.className.indexOf("is-on") < 0) return;
+    if (calendarListEl.clientHeight < 40) return;
+    var guard = 0;
+    while (guard < 40 && calendarListEl.lastChild && calendarListEl.scrollHeight > calendarListEl.clientHeight + 1) {
+      calendarListEl.removeChild(calendarListEl.lastChild);
+      guard++;
+    }
+    var tail = calendarListEl.lastChild;
+    while (tail && tail.className === "calendar-day") {
+      calendarListEl.removeChild(tail);
+      tail = calendarListEl.lastChild;
+    }
   }
 
   function pullCalendar() {
@@ -600,6 +619,8 @@
   };
 
   var PHOTO_MS = 18000;
+  var photoPanel = document.getElementById("photo");
+  var photoFrame = document.getElementById("photo-frame");
   var photoA = document.getElementById("photo-a");
   var photoB = document.getElementById("photo-b");
   var photoUrls = [];
@@ -631,16 +652,25 @@
   }
 
   function placeCover(img) {
+    if (!img || !photoFrame) return;
+    var fw = photoFrame.clientWidth;
+    var fh = photoFrame.clientHeight;
     var nw = img.naturalWidth;
     var nh = img.naturalHeight;
-    if (!nw || !nh) return;
-    var scale = Math.max(DESIGN_WIDTH / nw, DESIGN_HEIGHT / nh);
+    if (!fw || !fh || !nw || !nh) return;
+    var scale = Math.max(fw / nw, fh / nh);
     var w = Math.ceil(nw * scale);
     var h = Math.ceil(nh * scale);
     img.style.width = w + "px";
     img.style.height = h + "px";
-    img.style.left = Math.round((DESIGN_WIDTH - w) / 2) + "px";
-    img.style.top = Math.round((DESIGN_HEIGHT - h) / 2) + "px";
+    img.style.left = Math.round((fw - w) / 2) + "px";
+    img.style.top = Math.round((fh - h) / 2) + "px";
+  }
+
+  function setPhotoPanel(on) {
+    if (!photoPanel) return;
+    photoPanel.className = on ? "panel panel-photo is-on" : "panel panel-photo";
+    photoPanel.setAttribute("aria-hidden", on ? "false" : "true");
   }
 
   function stopPhotos() {
@@ -661,6 +691,7 @@
       photoB.removeAttribute("src");
     }
     if (dashEl) dashEl.className = "dashboard";
+    setPhotoPanel(false);
   }
 
   function showPhoto(img, url, attempts) {
@@ -670,7 +701,7 @@
       img.className = "photo-img is-on";
       var other = img === photoA ? photoB : photoA;
       if (other) other.className = "photo-img";
-      if (dashEl) dashEl.className = "dashboard has-photo";
+      setPhotoPanel(true);
       var at = photoUrls.indexOf(url);
       photoIndex = at >= 0 ? at : 0;
       photoShowingA = img === photoA;
@@ -678,7 +709,7 @@
     img.onerror = function () {
       if (img.getAttribute("data-want") !== url) return;
       if (!photoUrls.length || attempts + 1 >= photoUrls.length) {
-        if (!dashEl || dashEl.className.indexOf("has-photo") < 0) stopPhotos();
+        if (!photoPanel || photoPanel.className.indexOf("is-on") < 0) stopPhotos();
         return;
       }
       var at = photoUrls.indexOf(url);
@@ -697,7 +728,7 @@
   }
 
   function applyPhotoPlaylist(payload) {
-    if (!photoA || !photoB || !dashEl) return;
+    if (!photoA || !photoB || !photoPanel) return;
     var list = [];
     var raw = payload && payload.photos;
     if (payload && payload.enabled && raw && raw.length) {
@@ -713,7 +744,7 @@
     }
     if (key === photoKey) return;
     var current = photoUrls.length ? photoUrls[photoIndex] : "";
-    var keepCurrent = current && list.indexOf(current) >= 0 && dashEl.className.indexOf("has-photo") >= 0;
+    var keepCurrent = current && list.indexOf(current) >= 0 && photoPanel.className.indexOf("is-on") >= 0;
     photoKey = key;
     photoUrls = shufflePhotos(list);
     if (keepCurrent) {
@@ -722,6 +753,7 @@
     } else {
       photoIndex = 0;
       photoShowingA = true;
+      setPhotoPanel(true);
       showPhoto(photoA, photoUrls[0], 0);
     }
     if (photoTimer) window.clearInterval(photoTimer);

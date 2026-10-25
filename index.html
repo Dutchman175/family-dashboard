@@ -11,16 +11,12 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<link rel="stylesheet" href="styles.css?v=2">
+<link rel="stylesheet" href="styles.css?v=3">
 </head>
 <body>
 <div id="stage" class="stage">
   <div id="dashboard" class="dashboard">
-    <div id="photo-layer" class="photo-layer" aria-hidden="true">
-      <img id="photo-a" class="photo-img" alt="">
-      <img id="photo-b" class="photo-img" alt="">
-      <div class="photo-scrim"></div>
-    </div>
+    <div class="top-row">
     <header class="panel panel-clock">
       <div class="clock-row">
         <p id="clock" class="clock">12:00</p>
@@ -29,6 +25,13 @@
       <p id="date" class="date">Saturday, October 24</p>
       <p id="zone" class="zone">Central Time</p>
     </header>
+    <section class="panel panel-photo" id="photo" aria-hidden="true">
+      <div class="photo-frame" id="photo-frame">
+        <img id="photo-a" class="photo-img" alt="">
+        <img id="photo-b" class="photo-img" alt="">
+      </div>
+    </section>
+    </div>
 
     <!--
       More panels (chores, countdowns, photos) go in .panel-row
@@ -56,6 +59,6 @@
 <noscript>
   <p class="noscript">JavaScript is off, so the clock and weather cannot run.</p>
 </noscript>
-<script src="app.js?v=2"></script>
+<script src="app.js?v=3"></script>
 </body>
 </html>

@@ -53,11 +53,20 @@ p {
   transform-origin: top left;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+}
+
+.top-row {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
 }
 
 .panel-clock {
-  flex: 0 0 auto;
+  flex: 1 1 auto;
+  align-self: flex-start;
+  min-width: 0;
   padding-top: 12px;
 }
 
@@ -103,7 +112,11 @@ p {
   display: flex;
   flex-direction: row;
   align-items: stretch;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  min-height: 470px;
+  max-height: 612px;
+  margin-top: 36px;
+  overflow: hidden;
 }
 
 .panel-row > .panel + .panel {
@@ -113,7 +126,7 @@ p {
 .panel-weather {
   flex: 1;
   min-width: 0;
-  min-height: 470px;
+  min-height: 0;
   background: #1e2838;
   border: 2px solid rgba(255, 255, 255, 0.16);
   border-radius: 28px;
@@ -325,7 +338,7 @@ p {
   display: none;
   width: 620px;
   flex: 0 0 620px;
-  min-height: 470px;
+  min-height: 0;
   background: #1e2838;
   border: 2px solid rgba(255, 255, 255, 0.16);
   border-radius: 28px;
@@ -404,24 +417,29 @@ p {
   display: block;
 }
 
-.photo-layer {
+.panel-photo {
   display: none;
+  position: relative;
+  width: 720px;
+  flex: 0 0 720px;
+  margin-left: 36px;
+  background: #1e2838;
+  border: 2px solid rgba(255, 255, 255, 0.16);
+  border-radius: 28px;
+  overflow: hidden;
+}
+
+.panel-photo.is-on {
+  display: block;
+}
+
+.photo-frame {
   position: absolute;
   top: 0;
   right: 0;
   bottom: 0;
   left: 0;
   overflow: hidden;
-  z-index: 0;
-}
-
-.dashboard.has-photo .photo-layer {
-  display: block;
-}
-
-.dashboard.has-photo {
-  background-color: transparent;
-  background-image: none;
 }
 
 .photo-img {
@@ -429,34 +447,10 @@ p {
   top: 0;
   left: 0;
   opacity: 0;
-  z-index: 0;
   -webkit-transition: opacity 1400ms linear;
   transition: opacity 1400ms linear;
 }
 
 .photo-img.is-on {
   opacity: 1;
-}
-
-.photo-scrim {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  z-index: 1;
-  background-image: linear-gradient(180deg, rgba(14, 19, 27, 0.84) 0%, rgba(14, 19, 27, 0.34) 36%, rgba(14, 19, 27, 0.5) 68%, rgba(14, 19, 27, 0.86) 100%);
-}
-
-.dashboard.has-photo .panel-clock,
-.dashboard.has-photo .panel-row {
-  position: relative;
-  z-index: 2;
-}
-
-.dashboard.has-photo .clock,
-.dashboard.has-photo .ampm,
-.dashboard.has-photo .date,
-.dashboard.has-photo .zone {
-  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.45);
 }

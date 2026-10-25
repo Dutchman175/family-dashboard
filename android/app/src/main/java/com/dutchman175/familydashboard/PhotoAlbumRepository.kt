@@ -60,7 +60,7 @@ class PhotoAlbumRepository(context: Context) {
         when (val action = PhotoAlbumUrl.interpret(intent.getStringExtra(PhotoAlbumUrl.EXTRA))) {
             PhotoAlbumUrl.Action.Clear -> clear()
             PhotoAlbumUrl.Action.Ignore -> Unit
-            is PhotoAlbumUrl.Action.Save -> setToken(action.token)
+            is PhotoAlbumUrl.Action.Save -> setToken(action.token, action.kind)
         }
         intent.removeExtra(PhotoAlbumUrl.EXTRA)
     }
@@ -92,10 +92,11 @@ class PhotoAlbumRepository(context: Context) {
         }
     }
 
-    private fun setToken(token: String) {
+    private fun setToken(token: String, kind: PhotoAlbumUrl.Kind) {
         generation++
-        val same = token == prefs.getString(KEY_TOKEN, null)
-        prefs.edit().putString(KEY_TOKEN, token).commit()
+        val same = token == prefs.getString(KEY_TOKEN, null) &&
+            kind.name == prefs.getString(KEY_KIND, PhotoAlbumUrl.Kind.LEGACY.name)
+        prefs.edit().putString(KEY_TOKEN, token).putString(KEY_KIND, kind.name).commit()
         notifyListeners()
         scheduler.execute {
             if (!same) {
@@ -107,7 +108,7 @@ class PhotoAlbumRepository(context: Context) {
 
     private fun clear() {
         generation++
-        prefs.edit().remove(KEY_TOKEN).commit()
+        prefs.edit().remove(KEY_TOKEN).remove(KEY_KIND).commit()
         notifyListeners()
         scheduler.execute { deleteAllPhotos() }
     }
@@ -131,27 +132,34 @@ class PhotoAlbumRepository(context: Context) {
                 return
             }
             if (!token.isNullOrEmpty()) {
-                prefs.edit().remove(KEY_TOKEN).commit()
+                prefs.edit().remove(KEY_TOKEN).remove(KEY_KIND).commit()
             }
             deleteAllPhotos()
             notifyListeners()
             return
         }
-        val page = loadPage(token)
+        val cloudKit = prefs.getString(KEY_KIND, PhotoAlbumUrl.Kind.LEGACY.name) ==
+            PhotoAlbumUrl.Kind.CLOUDKIT.name
+        val page = if (cloudKit) null else loadPage(token)
+        val photos = if (cloudKit) loadCloudKit(token) else page!!.photos
         if (gen != generation) {
             return
         }
-        val keep = selectKeep(page.photos)
+        val keep = selectKeep(photos)
         val keepNames = keep.map { SharedStream.fileName(it.guid) }.toSet()
         deleteExcept(keepNames)
         val missing = keep.filter { !File(cacheDir, SharedStream.fileName(it.guid)).isFile }
         if (missing.isNotEmpty()) {
-            val urls = assetUrls(page.host, token, missing)
+            val urls = if (page == null) {
+                emptyMap()
+            } else {
+                assetUrls(page.host, token, missing)
+            }
             for (photo in missing) {
                 if (gen != generation || cacheBytes() > MAX_CACHE_BYTES) {
                     break
                 }
-                val url = urls[photo.checksum] ?: continue
+                val url = photo.directUrl ?: urls[photo.checksum] ?: continue
                 download(url, SharedStream.fileName(photo.guid), 0)
             }
         }
@@ -194,6 +202,70 @@ class PhotoAlbumRepository(context: Context) {
             throw IOException("photo fetch failed")
         }
         return Page(host, SharedStream.photos(reply.body))
+    }
+
+    private fun loadCloudKit(token: String): List<SharedStream.PhotoChoice> {
+        val resolveUrl = URL(
+            "https",
+            CloudKitAlbum.RESOLVE_HOST,
+            "/database/1/com.apple.photos.cloud/production/public/records/resolve?" +
+                CloudKitAlbum.resolveQuery(token)
+        )
+        val resolved = postAbsolute(resolveUrl, CloudKitAlbum.resolveBody(token))
+        if (resolved.code !in 200..299) {
+            throw IOException("photo fetch failed")
+        }
+        val share = CloudKitAlbum.parseResolve(resolved.body) ?: throw IOException("photo fetch failed")
+        val photos = ArrayList<SharedStream.PhotoChoice>()
+        var marker: String? = null
+        var pages = 0
+        while (pages < 20) {
+            val queryUrl = URL(
+                "https",
+                share.partitionHost,
+                "/database/1/com.apple.photos.cloud/production/shared/records/query?" +
+                    CloudKitAlbum.recordsQuery(share.authToken)
+            )
+            val page = postAbsolute(queryUrl, CloudKitAlbum.queryBody(share, marker))
+            if (page.code !in 200..299) {
+                throw IOException("photo fetch failed")
+            }
+            photos.addAll(CloudKitAlbum.photos(page.body))
+            marker = CloudKitAlbum.continuation(page.body)
+            pages++
+            if (marker == null) {
+                break
+            }
+        }
+        return photos
+    }
+
+    private fun postAbsolute(url: URL, json: String): Reply {
+        val host = url.host?.lowercase() ?: throw IOException("photo fetch failed")
+        if (url.protocol != "https" || !CloudKitAlbum.isCkHost(host)) {
+            throw IOException("photo fetch failed")
+        }
+        val connection = url.openConnection() as HttpURLConnection
+        try {
+            connection.requestMethod = "POST"
+            connection.instanceFollowRedirects = false
+            connection.connectTimeout = 20_000
+            connection.readTimeout = 30_000
+            connection.doOutput = true
+            connection.setRequestProperty("Content-Type", "text/plain")
+            connection.setRequestProperty("Accept", "application/json")
+            connection.setRequestProperty("Origin", "https://photos.icloud.com")
+            connection.setRequestProperty("User-Agent", "FamilyDashboard/1.2")
+            connection.outputStream.use { it.write(json.toByteArray(Charsets.UTF_8)) }
+            val code = connection.responseCode
+            val stream = openBody(connection, code)
+            val body = if (stream == null) "" else readLimited(stream, MAX_META_BYTES)
+            return Reply(code, body)
+        } catch (thrown: IOException) {
+            throw IOException("photo fetch failed")
+        } finally {
+            connection.disconnect()
+        }
     }
 
     private fun shouldFollow(reply: Reply): Boolean {
@@ -414,6 +486,7 @@ class PhotoAlbumRepository(context: Context) {
         const val TAG = "FamilyDashboard"
         const val PREFS = "family_dashboard"
         const val KEY_TOKEN = "photo_album_token"
+        const val KEY_KIND = "photo_album_kind"
         const val REFRESH_MINUTES = 45L
         const val MAX_PHOTOS = 40
         const val BATCH = 20

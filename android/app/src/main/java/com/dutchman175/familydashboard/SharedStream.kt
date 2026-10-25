@@ -19,7 +19,8 @@ internal object SharedStream {
         val guid: String,
         val checksum: String,
         val width: Int,
-        val height: Int
+        val height: Int,
+        val directUrl: String? = null
     )
 
     data class Derivative(

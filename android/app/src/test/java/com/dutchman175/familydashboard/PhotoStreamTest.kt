@@ -15,6 +15,7 @@ class PhotoStreamTest {
         val action = PhotoAlbumUrl.interpret("https://www.icloud.com/sharedalbum/#$token")
         val save = action as PhotoAlbumUrl.Action.Save
         assertEquals(token, save.token)
+        assertEquals(PhotoAlbumUrl.Kind.LEGACY, save.kind)
         assertFalse(save.token.contains("icloud"))
         assertFalse(save.token.contains("http"))
     }
@@ -150,5 +151,90 @@ class PhotoStreamTest {
             wanted
         )
         assertTrue(http.isEmpty())
+    }
+
+    @Test
+    fun newAlbumLinkKeepsOnlyTheToken() {
+        val cloudToken = "Abcdefghij1234567890ABCDE"
+        val action = PhotoAlbumUrl.interpret("https://photos.icloud.com/shared/album/$cloudToken")
+        val save = action as PhotoAlbumUrl.Action.Save
+        assertEquals(cloudToken, save.token)
+        assertEquals(PhotoAlbumUrl.Kind.CLOUDKIT, save.kind)
+        assertFalse(save.token.contains("photos"))
+        val slash = PhotoAlbumUrl.interpret("https://photos.icloud.com/shared/album/$cloudToken/")
+        assertEquals(cloudToken, (slash as PhotoAlbumUrl.Action.Save).token)
+        assertTrue(
+            PhotoAlbumUrl.interpret("https://evil.example/shared/album/$cloudToken") is PhotoAlbumUrl.Action.Ignore
+        )
+        assertTrue(
+            PhotoAlbumUrl.interpret("http://photos.icloud.com/shared/album/$cloudToken") is PhotoAlbumUrl.Action.Ignore
+        )
+    }
+
+    @Test
+    fun cloudKitPicksScreenSizeAndSkipsVideo() {
+        val resolve = """
+            {
+              "results": [{
+                "zoneID": {"zoneName": "SharedAlbum-1", "ownerRecordName": "owner123", "zoneType": "REGULAR_CUSTOM_ZONE"},
+                "anonymousPublicAccess": {
+                  "databasePartition": "https://p42-ckdatabasews.icloud.com:443",
+                  "token": "anonymous-access-token-value"
+                }
+              }]
+            }
+        """.trimIndent()
+        val share = CloudKitAlbum.parseResolve(resolve)
+        assertEquals("p42-ckdatabasews.icloud.com", share!!.partitionHost)
+        assertNull(
+            CloudKitAlbum.parseResolve(
+                """
+                {"results":[{"zoneID":{"zoneName":"SharedAlbum-1","ownerRecordName":"owner123","zoneType":"REGULAR_CUSTOM_ZONE"},
+                "anonymousPublicAccess":{"databasePartition":"https://evil.example","token":"anonymous-access-token-value"}}]}
+                """.trimIndent()
+            )
+        )
+        val body = """
+            {
+              "records": [
+                {
+                  "recordType": "CPLMaster",
+                  "recordName": "videoRecord123456",
+                  "fields": {
+                    "itemType": {"value": "public.mpeg-4"},
+                    "resJPEGMedRes": {"value": {"downloadURL": "https://cvws.icloud-content.com/v.jpg", "size": 1000}},
+                    "resJPEGMedWidth": {"value": 1920},
+                    "resJPEGMedHeight": {"value": 1080}
+                  }
+                },
+                {
+                  "recordType": "CPLMaster",
+                  "recordName": "photo+id/withBase64==",
+                  "fields": {
+                    "itemType": {"value": "public.heic"},
+                    "resJPEGThumbRes": {"value": {"downloadURL": "https://cvws.icloud-content.com/t.jpg", "size": 80000}},
+                    "resJPEGThumbWidth": {"value": 360},
+                    "resJPEGThumbHeight": {"value": 480},
+                    "resJPEGMedRes": {"value": {"downloadURL": "https://cvws.icloud-content.com/m.jpg", "size": 900000}},
+                    "resJPEGMedWidth": {"value": 1536},
+                    "resJPEGMedHeight": {"value": 2048},
+                    "resOriginalRes": {"value": {"downloadURL": "https://cvws.icloud-content.com/o.jpg", "size": 3000000}},
+                    "resOriginalWidth": {"value": 3024},
+                    "resOriginalHeight": {"value": 4032}
+                  }
+                }
+              ],
+              "continuationMarker": ""
+            }
+        """.trimIndent()
+        val photos = CloudKitAlbum.photos(body)
+        assertEquals(1, photos.size)
+        assertEquals("https://cvws.icloud-content.com/m.jpg", photos[0].directUrl)
+        assertEquals(2048, photos[0].height)
+        assertNull(CloudKitAlbum.continuation(body))
+        val query = CloudKitAlbum.resolveQuery("Abcdefghij1234567890ABCDE")
+        assertTrue(query.contains("clientBuildNumber=2638BuildBeta15"))
+        assertTrue(query.contains("sharing_url_key="))
+        assertFalse(query.contains(" "))
     }
 }

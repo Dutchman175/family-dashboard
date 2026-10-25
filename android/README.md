@@ -63,7 +63,11 @@ If iCloud cannot be reached, the last events stay on screen with a small "Calend
 
 ## Photo slideshow
 
-Share an iCloud album and copy its Public Website link. It looks like `https://www.icloud.com/sharedalbum/#TOKEN`. Do not put that link in git, in a screenshot, or in the web page. Set it only on the TV. The quotes matter, because `#` would otherwise be treated as a comment:
+Share an iCloud album and copy its link. A current album looks like `https://photos.icloud.com/shared/album/PASTE-THE-TOKEN`. An older album looks like `https://www.icloud.com/sharedalbum/#PASTE-THE-TOKEN`. Do not put that link in git, in a screenshot, or in the web page. Set it only on the TV. Pass the link as-is. Quotes keep a `#` from being treated as a comment:
+
+```
+adb shell am start -n com.dutchman175.familydashboard/.MainActivity --es photo_album_url 'https://photos.icloud.com/shared/album/PASTE-THE-TOKEN'
+```
 
 ```
 adb shell "am start -n com.dutchman175.familydashboard/.MainActivity --es photo_album_url 'https://www.icloud.com/sharedalbum/#PASTE-THE-TOKEN'"
