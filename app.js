@@ -557,9 +557,12 @@
       clearNode(calendarListEl);
       calendarNoteEl.className = "calendar-note";
       calendarNoteEl.textContent = "";
+      syncCalendarTarget();
+      if (monthOpen) closeMonthView();
       return;
     }
-    calendarEl.className = "panel panel-calendar is-on";
+    var focused = calendarEl.className.indexOf("is-focused") >= 0;
+    calendarEl.className = focused ? "panel panel-calendar is-on is-focused" : "panel panel-calendar is-on";
     clearNode(calendarListEl);
     var events = snapshot.events || [];
     if (!events.length) {
@@ -590,6 +593,11 @@
       calendarNoteEl.className = "calendar-note";
     }
     fitCalendar();
+    syncCalendarTarget();
+    if (monthOpen) {
+      if (!snapshot.configured) closeMonthView();
+      else renderMonth();
+    }
   }
 
   function fitCalendar() {
@@ -618,6 +626,210 @@
 
   window.onCalendarSnapshot = function (snapshot) {
     renderCalendar(snapshot);
+  };
+
+  if (typeof window.__tvKeys === "undefined") window.__tvKeys = false;
+  var monthEl = document.getElementById("month");
+  var monthTitleEl = document.getElementById("month-title");
+  var monthGridEl = document.getElementById("month-grid");
+  var monthOpen = false;
+  var monthCursor = null;
+  var MONTH_NAMES = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
+  ];
+
+  function syncCalendarTarget() {
+    if (!calendarEl) return;
+    var on = !!(window.__tvKeys && lastCalendarSnapshot && lastCalendarSnapshot.configured);
+    if (on) {
+      calendarEl.setAttribute("tabindex", "0");
+    } else {
+      calendarEl.removeAttribute("tabindex");
+      if (document.activeElement === calendarEl) calendarEl.blur();
+    }
+  }
+
+  function monthFromToday(today) {
+    var y = 0;
+    var m = -1;
+    if (typeof today === "string" && today.length >= 7) {
+      y = parseInt(today.slice(0, 4), 10);
+      m = parseInt(today.slice(5, 7), 10) - 1;
+    }
+    if (!y || m < 0 || m > 11) {
+      var fallback = chicagoTodayParts();
+      y = fallback.y;
+      m = fallback.m;
+    }
+    return { y: y, m: m };
+  }
+
+  function chicagoTodayParts() {
+    try {
+      var fmt = new Intl.DateTimeFormat("en-US", {
+        timeZone: "America/Chicago",
+        year: "numeric",
+        month: "2-digit"
+      });
+      var parts = fmt.formatToParts(new Date());
+      var y = 0;
+      var m = 0;
+      var i;
+      for (i = 0; i < parts.length; i++) {
+        if (parts[i].type === "year") y = parseInt(parts[i].value, 10);
+        if (parts[i].type === "month") m = parseInt(parts[i].value, 10) - 1;
+      }
+      if (y && m >= 0 && m <= 11) return { y: y, m: m };
+    } catch (e) {}
+    var now = new Date();
+    return { y: now.getFullYear(), m: now.getMonth() };
+  }
+
+  function daysInMonth(y, m) {
+    return new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+  }
+
+  function monthDayKey(y, m, d) {
+    var mm = m + 1;
+    return y + "-" + (mm < 10 ? "0" : "") + mm + "-" + (d < 10 ? "0" : "") + d;
+  }
+
+  function openMonthView() {
+    if (!monthEl || !lastCalendarSnapshot || !lastCalendarSnapshot.configured) return;
+    if (!monthOpen || !monthCursor) {
+      monthCursor = monthFromToday(lastCalendarSnapshot.today);
+    }
+    monthOpen = true;
+    monthEl.className = "month is-on";
+    monthEl.setAttribute("aria-hidden", "false");
+    renderMonth();
+  }
+
+  function closeMonthView() {
+    monthOpen = false;
+    if (!monthEl) return;
+    monthEl.className = "month";
+    monthEl.setAttribute("aria-hidden", "true");
+  }
+
+  function shiftMonth(delta) {
+    if (!monthOpen || !monthCursor) return;
+    var m = monthCursor.m + delta;
+    var y = monthCursor.y;
+    while (m < 0) {
+      m += 12;
+      y -= 1;
+    }
+    while (m > 11) {
+      m -= 12;
+      y += 1;
+    }
+    monthCursor = { y: y, m: m };
+    renderMonth();
+  }
+
+  function renderMonth() {
+    if (!monthOpen || !monthCursor || !monthGridEl || !monthTitleEl) return;
+    var y = monthCursor.y;
+    var m = monthCursor.m;
+    monthTitleEl.textContent = MONTH_NAMES[m] + " " + y;
+    clearNode(monthGridEl);
+    var byDay = {};
+    var events = (lastCalendarSnapshot && lastCalendarSnapshot.month) || [];
+    var i;
+    for (i = 0; i < events.length; i++) {
+      var ev = events[i];
+      if (!ev || !ev.day) continue;
+      if (!byDay[ev.day]) byDay[ev.day] = [];
+      byDay[ev.day].push(ev);
+    }
+    var firstDow = new Date(Date.UTC(y, m, 1)).getUTCDay();
+    var dim = daysInMonth(y, m);
+    var weeks = Math.ceil((firstDow + dim) / 7);
+    if (weeks < 4) weeks = 4;
+    var todayKey = (lastCalendarSnapshot && lastCalendarSnapshot.today) || "";
+    var prevDim = daysInMonth(y, m - 1);
+    var week;
+    for (week = 0; week < weeks; week++) {
+      var row = el("div", "month-week");
+      var col;
+      for (col = 0; col < 7; col++) {
+        var index = week * 7 + col;
+        var dayNum;
+        var cellY = y;
+        var cellM = m;
+        var out = false;
+        if (index < firstDow) {
+          out = true;
+          dayNum = prevDim - firstDow + index + 1;
+          cellM = m - 1;
+          if (cellM < 0) {
+            cellM = 11;
+            cellY = y - 1;
+          }
+        } else if (index >= firstDow + dim) {
+          out = true;
+          dayNum = index - (firstDow + dim) + 1;
+          cellM = m + 1;
+          if (cellM > 11) {
+            cellM = 0;
+            cellY = y + 1;
+          }
+        } else {
+          dayNum = index - firstDow + 1;
+        }
+        var key = monthDayKey(cellY, cellM, dayNum);
+        var cls = "month-cell";
+        if (out) cls += " is-out";
+        if (key === todayKey) cls += " is-today";
+        var cell = el("div", cls);
+        cell.appendChild(el("p", "month-num", String(dayNum)));
+        var list = byDay[key] || [];
+        var shown = list.length > 3 ? 3 : list.length;
+        var n;
+        for (n = 0; n < shown; n++) {
+          var item = list[n];
+          cell.appendChild(el(
+            "p",
+            item && item.allDay ? "month-event is-all-day" : "month-event",
+            (item && item.title) || "Busy"
+          ));
+        }
+        if (list.length > 3) {
+          cell.appendChild(el("p", "month-more", "+" + (list.length - 3) + " more"));
+        }
+        row.appendChild(cell);
+      }
+      monthGridEl.appendChild(row);
+    }
+  }
+
+  window.onDashKey = function (name) {
+    if (!window.__tvKeys) return;
+    if (name === "focus") {
+      syncCalendarTarget();
+      if (calendarEl && calendarEl.getAttribute("tabindex") === "0") {
+        calendarEl.className = "panel panel-calendar is-on is-focused";
+        calendarEl.focus();
+      }
+      return;
+    }
+    if (name === "open") {
+      openMonthView();
+      return;
+    }
+    if (name === "close") {
+      closeMonthView();
+      return;
+    }
+    if (name === "prev") {
+      shiftMonth(-1);
+      return;
+    }
+    if (name === "next") {
+      shiftMonth(1);
+    }
   };
 
   var PHOTO_MS = 18000;

@@ -52,6 +52,21 @@ internal object ChicagoTime {
         return cal.timeInMillis
     }
 
+    /** Midnight on the first of the month, shifted by [monthOffset] (negative is earlier). */
+    fun startOfMonth(millis: Long, monthOffset: Int, zone: TimeZone): Long {
+        val cal = Calendar.getInstance(zone)
+        cal.timeInMillis = millis
+        cal.set(Calendar.DAY_OF_MONTH, 1)
+        cal.set(Calendar.HOUR_OF_DAY, 0)
+        cal.set(Calendar.MINUTE, 0)
+        cal.set(Calendar.SECOND, 0)
+        cal.set(Calendar.MILLISECOND, 0)
+        if (monthOffset != 0) {
+            cal.add(Calendar.MONTH, monthOffset)
+        }
+        return cal.timeInMillis
+    }
+
     /** Days from the UTC civil calendar, so all-day lengths do not depend on DST. */
     fun civilDay(year: Int, month: Int, day: Int): Long {
         val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC"))

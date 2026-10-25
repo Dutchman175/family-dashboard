@@ -11,7 +11,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<link rel="stylesheet" href="styles.css?v=5">
+<link rel="stylesheet" href="styles.css?v=7">
 </head>
 <body>
 <div id="stage" class="stage">
@@ -54,11 +54,27 @@
       </section>
     </div>
     </div>
+    <div id="month" class="month" aria-hidden="true">
+      <div class="month-head">
+        <p id="month-title" class="month-title"></p>
+        <p class="month-hint">Left and right change month · Back returns</p>
+      </div>
+      <div class="month-dow">
+        <p>Sun</p>
+        <p>Mon</p>
+        <p>Tue</p>
+        <p>Wed</p>
+        <p>Thu</p>
+        <p>Fri</p>
+        <p>Sat</p>
+      </div>
+      <div id="month-grid" class="month-grid"></div>
+    </div>
   </div>
 </div>
 <noscript>
   <p class="noscript">JavaScript is off, so the clock and weather cannot run.</p>
 </noscript>
-<script src="app.js?v=5"></script>
+<script src="app.js?v=7"></script>
 </body>
 </html>

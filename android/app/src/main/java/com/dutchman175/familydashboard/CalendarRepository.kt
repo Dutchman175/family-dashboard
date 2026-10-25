@@ -94,18 +94,12 @@ class CalendarRepository(context: Context) {
         val same = url == prefs.getString(KEY_URL, null)
         val editor = prefs.edit().putString(KEY_URL, url)
         if (!same) {
-            editor.remove(KEY_ROWS)
+            editor.remove(KEY_ROWS).remove(KEY_MONTH)
         }
         editor.commit()
-        val rows = if (same) CalendarSnapshot.decodeRows(prefs.getString(KEY_ROWS, null)) else emptyList()
-        snapshot = CalendarSnapshot.snapshot(
-            configured = true,
-            stale = false,
-            loading = rows.isEmpty(),
-            rows = rows,
-            nowMillis = System.currentTimeMillis(),
-            zone = ChicagoTime.ZONE
-        )
+        val rows = if (same) storedRows() else emptyList()
+        val month = if (same) storedMonth() else emptyList()
+        remember(stale = false, loading = rows.isEmpty(), rows = rows, month = month)
         lastEnqueue = System.currentTimeMillis()
         notifyListeners()
         scheduler.execute { safeFetch() }
@@ -113,7 +107,7 @@ class CalendarRepository(context: Context) {
 
     private fun clear() {
         generation++
-        prefs.edit().remove(KEY_URL).remove(KEY_ROWS).commit()
+        prefs.edit().remove(KEY_URL).remove(KEY_ROWS).remove(KEY_MONTH).commit()
         snapshot = CalendarSnapshot.UNCONFIGURED
         notifyListeners()
     }
@@ -124,15 +118,8 @@ class CalendarRepository(context: Context) {
             snapshot = CalendarSnapshot.UNCONFIGURED
             return
         }
-        val rows = CalendarSnapshot.decodeRows(prefs.getString(KEY_ROWS, null))
-        snapshot = CalendarSnapshot.snapshot(
-            configured = true,
-            stale = false,
-            loading = rows.isEmpty(),
-            rows = rows,
-            nowMillis = System.currentTimeMillis(),
-            zone = ChicagoTime.ZONE
-        )
+        val rows = storedRows()
+        remember(stale = false, loading = rows.isEmpty(), rows = rows, month = storedMonth())
     }
 
     private fun safeFetch() {
@@ -155,22 +142,18 @@ class CalendarRepository(context: Context) {
             return
         }
         val ics = download(url)
-        val rows = IcsWindow.upcoming(ics, Date(), ChicagoTime.ZONE)
+        val covered = IcsWindow.covered(ics, Date(), ChicagoTime.ZONE)
         if (generation != gen) {
             return
         }
-        prefs.edit().putString(KEY_ROWS, CalendarSnapshot.encodeRows(rows)).commit()
+        prefs.edit()
+            .putString(KEY_ROWS, CalendarSnapshot.encodeRows(covered.upcoming))
+            .putString(KEY_MONTH, CalendarSnapshot.encodeRows(covered.month))
+            .commit()
         if (generation != gen) {
             return
         }
-        snapshot = CalendarSnapshot.snapshot(
-            configured = true,
-            stale = false,
-            loading = false,
-            rows = rows,
-            nowMillis = System.currentTimeMillis(),
-            zone = ChicagoTime.ZONE
-        )
+        remember(stale = false, loading = false, rows = covered.upcoming, month = covered.month)
         notifyListeners()
     }
 
@@ -186,12 +169,38 @@ class CalendarRepository(context: Context) {
                 configured = true,
                 stale = true,
                 loading = false,
-                rows = CalendarSnapshot.decodeRows(prefs.getString(KEY_ROWS, null)),
+                rows = storedRows(),
                 nowMillis = System.currentTimeMillis(),
-                zone = ChicagoTime.ZONE
+                zone = ChicagoTime.ZONE,
+                monthRows = storedMonth()
             )
         }
         notifyListeners()
+    }
+
+    private fun storedRows(): List<IcsWindow.Row> {
+        return CalendarSnapshot.decodeRows(prefs.getString(KEY_ROWS, null))
+    }
+
+    private fun storedMonth(): List<IcsWindow.Row> {
+        return CalendarSnapshot.decodeRows(prefs.getString(KEY_MONTH, null))
+    }
+
+    private fun remember(
+        stale: Boolean,
+        loading: Boolean,
+        rows: List<IcsWindow.Row>,
+        month: List<IcsWindow.Row>
+    ) {
+        snapshot = CalendarSnapshot.snapshot(
+            configured = true,
+            stale = stale,
+            loading = loading,
+            rows = rows,
+            nowMillis = System.currentTimeMillis(),
+            zone = ChicagoTime.ZONE,
+            monthRows = month
+        )
     }
 
     private fun notifyListeners() {
@@ -253,6 +262,7 @@ class CalendarRepository(context: Context) {
         const val PREFS = "family_dashboard"
         const val KEY_URL = "calendar_url"
         const val KEY_ROWS = "calendar_rows"
+        const val KEY_MONTH = "calendar_month_rows"
         const val REFRESH_MINUTES = 15L
         const val THROTTLE_MS = 30_000L
         const val MAX_BYTES = 4 * 1024 * 1024

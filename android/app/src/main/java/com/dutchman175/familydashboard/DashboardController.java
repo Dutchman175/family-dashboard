@@ -5,6 +5,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewParent;
@@ -34,6 +35,7 @@ final class DashboardController {
     private static final String DASHBOARD_PREFIX =
             "https://appassets.androidplatform.net/assets/dashboard";
     private static final long RETRY_MS = 15000L;
+    private static final long MONTH_IDLE_MS = 120000L;
 
     private final WebView webView;
     private final View errorView;
@@ -49,6 +51,9 @@ final class DashboardController {
 
     private boolean destroyed;
     private boolean loadFailed;
+    private boolean monthOpen;
+    private boolean calendarFocused;
+    private final Runnable idleClose;
 
     DashboardController(Context context, View root, boolean interactive) {
         this.interactive = interactive;
@@ -56,6 +61,14 @@ final class DashboardController {
         this.errorView = root.findViewById(R.id.error);
         this.retryButton = root.findViewById(R.id.retry);
         this.handler = new Handler(Looper.getMainLooper());
+        this.idleClose = new Runnable() {
+            @Override
+            public void run() {
+                if (!destroyed && monthOpen) {
+                    closeMonth();
+                }
+            }
+        };
         this.retryRunnable = new Runnable() {
             @Override
             public void run() {
@@ -107,11 +120,15 @@ final class DashboardController {
 
     void pause() {
         handler.removeCallbacks(retryRunnable);
+        handler.removeCallbacks(idleClose);
         webView.onPause();
     }
 
     void resume() {
         webView.onResume();
+        if (monthOpen) {
+            resetIdle();
+        }
         if (errorView.getVisibility() == View.VISIBLE) {
             load();
         }
@@ -120,6 +137,7 @@ final class DashboardController {
     void destroy() {
         destroyed = true;
         handler.removeCallbacks(retryRunnable);
+        handler.removeCallbacks(idleClose);
         calendar.removeListener(snapshotListener);
         photos.removeListener(playlistListener);
         webView.setWebViewClient(null);
@@ -193,6 +211,7 @@ final class DashboardController {
                 hideError();
                 pushSnapshot(calendar.snapshotJson());
                 pushPlaylist(photos.playlistJson());
+                pushTvState();
             }
         }
 
@@ -288,6 +307,170 @@ final class DashboardController {
             mime = "application/octet-stream";
         }
         return new WebResourceResponse(mime, response.getEncoding(), 200, "OK", headers, data);
+    }
+
+    /**
+     * TV remote keys for the launcher only. The screensaver constructs this
+     * controller with interactive false and never receives input.
+     */
+    boolean handleKey(KeyEvent event) {
+        if (!interactive || event == null || destroyed) {
+            return false;
+        }
+        if (errorView.getVisibility() == View.VISIBLE) {
+            return false;
+        }
+        int action = event.getAction();
+        int code = event.getKeyCode();
+        if (code == KeyEvent.KEYCODE_BACK) {
+            if (!monthOpen) {
+                return false;
+            }
+            if (action == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
+                closeMonth();
+            }
+            return true;
+        }
+        if (action != KeyEvent.ACTION_DOWN) {
+            return false;
+        }
+        if (monthOpen && !calendarConfigured()) {
+            closeMonth();
+            return false;
+        }
+        if (monthOpen) {
+            resetIdle();
+            if (isPreviousMonth(code)) {
+                injectKey("prev");
+                return true;
+            }
+            if (isNextMonth(code)) {
+                injectKey("next");
+                return true;
+            }
+            if (isDpad(code) || isOk(code)) {
+                return true;
+            }
+            return false;
+        }
+        if (event.getRepeatCount() > 0) {
+            return false;
+        }
+        if (isDpad(code)) {
+            focusCalendar();
+            return calendarFocused;
+        }
+        if (isOk(code) && calendarFocused) {
+            openMonth();
+            return true;
+        }
+        return false;
+    }
+
+    boolean consumeBack() {
+        if (!interactive || !monthOpen) {
+            return false;
+        }
+        closeMonth();
+        return true;
+    }
+
+    private void focusCalendar() {
+        if (!calendarConfigured()) {
+            calendarFocused = false;
+            return;
+        }
+        calendarFocused = true;
+        injectKey("focus");
+    }
+
+    private void openMonth() {
+        if (!calendarFocused || monthOpen || !calendarConfigured()) {
+            return;
+        }
+        monthOpen = true;
+        injectKey("open");
+        resetIdle();
+    }
+
+    private void closeMonth() {
+        if (!monthOpen) {
+            return;
+        }
+        monthOpen = false;
+        handler.removeCallbacks(idleClose);
+        injectKey("close");
+    }
+
+    private void resetIdle() {
+        handler.removeCallbacks(idleClose);
+        if (monthOpen && !destroyed) {
+            handler.postDelayed(idleClose, MONTH_IDLE_MS);
+        }
+    }
+
+    private boolean calendarConfigured() {
+        String json = calendar.snapshotJson();
+        return json != null && json.indexOf("\"configured\":true") >= 0;
+    }
+
+    private void injectKey(final String name) {
+        handler.post(new Runnable() {
+            @Override
+            public void run() {
+                if (destroyed) {
+                    return;
+                }
+                webView.evaluateJavascript(
+                        "window.onDashKey&&window.onDashKey('" + name + "')",
+                        null);
+            }
+        });
+    }
+
+    private void pushTvState() {
+        if (!interactive) {
+            return;
+        }
+        handler.post(new Runnable() {
+            @Override
+            public void run() {
+                if (destroyed) {
+                    return;
+                }
+                StringBuilder cmd = new StringBuilder("window.__tvKeys=true;");
+                if (calendarFocused) {
+                    cmd.append("window.onDashKey&&window.onDashKey('focus');");
+                }
+                if (monthOpen) {
+                    cmd.append("window.onDashKey&&window.onDashKey('open');");
+                }
+                webView.evaluateJavascript(cmd.toString(), null);
+            }
+        });
+    }
+
+    private static boolean isDpad(int code) {
+        return code == KeyEvent.KEYCODE_DPAD_UP
+                || code == KeyEvent.KEYCODE_DPAD_DOWN
+                || code == KeyEvent.KEYCODE_DPAD_LEFT
+                || code == KeyEvent.KEYCODE_DPAD_RIGHT;
+    }
+
+    private static boolean isOk(int code) {
+        return code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER;
+    }
+
+    private static boolean isPreviousMonth(int code) {
+        return code == KeyEvent.KEYCODE_DPAD_LEFT
+                || code == KeyEvent.KEYCODE_CHANNEL_DOWN
+                || code == KeyEvent.KEYCODE_PAGE_UP;
+    }
+
+    private static boolean isNextMonth(int code) {
+        return code == KeyEvent.KEYCODE_DPAD_RIGHT
+                || code == KeyEvent.KEYCODE_CHANNEL_UP
+                || code == KeyEvent.KEYCODE_PAGE_DOWN;
     }
 
     private void pushSnapshot(final String json) {
