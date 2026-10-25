@@ -41,6 +41,9 @@
     dashEl.style.top = y + "px";
     dashEl.style.webkitTransform = transform;
     dashEl.style.transform = transform;
+    fitCalendar();
+    if (photoA && photoA.className.indexOf("is-on") >= 0) placeCover(photoA);
+    if (photoB && photoB.className.indexOf("is-on") >= 0) placeCover(photoB);
   }
 
   function renderZonedClock(now) {
@@ -544,8 +547,10 @@
   var calendarEl = document.getElementById("calendar");
   var calendarListEl = document.getElementById("calendar-list");
   var calendarNoteEl = document.getElementById("calendar-note");
+  var lastCalendarSnapshot = null;
 
   function renderCalendar(snapshot) {
+    lastCalendarSnapshot = snapshot;
     if (!calendarEl || !calendarListEl || !calendarNoteEl) return;
     if (!snapshot || !snapshot.configured) {
       calendarEl.className = "panel panel-calendar";
@@ -584,6 +589,22 @@
       calendarNoteEl.textContent = "";
       calendarNoteEl.className = "calendar-note";
     }
+    fitCalendar();
+  }
+
+  function fitCalendar() {
+    if (!calendarEl || !calendarListEl || calendarEl.className.indexOf("is-on") < 0) return;
+    if (calendarListEl.clientHeight < 40) return;
+    var guard = 0;
+    while (guard < 40 && calendarListEl.lastChild && calendarListEl.scrollHeight > calendarListEl.clientHeight + 1) {
+      calendarListEl.removeChild(calendarListEl.lastChild);
+      guard++;
+    }
+    var tail = calendarListEl.lastChild;
+    while (tail && tail.className === "calendar-day") {
+      calendarListEl.removeChild(tail);
+      tail = calendarListEl.lastChild;
+    }
   }
 
   function pullCalendar() {
@@ -597,6 +618,179 @@
 
   window.onCalendarSnapshot = function (snapshot) {
     renderCalendar(snapshot);
+  };
+
+  var PHOTO_MS = 18000;
+  var photoPanel = document.getElementById("photo");
+  var photoFrame = document.getElementById("photo-frame");
+  var photoA = document.getElementById("photo-a");
+  var photoB = document.getElementById("photo-b");
+  var photoUrls = [];
+  var photoIndex = 0;
+  var photoTimer = null;
+  var photoKey = "";
+  var photoShowingA = true;
+
+  function allowedPhotoUrl(url) {
+    if (typeof url !== "string") return false;
+    if (/^https:\/\/appassets\.androidplatform\.net\/photos\/[a-f0-9]{32}\.jpg$/.test(url)) return true;
+    var host = window.location.hostname;
+    if (host === "127.0.0.1" || host === "localhost") {
+      return /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?\/sample-photo\.(png|jpe?g)$/.test(url);
+    }
+    return false;
+  }
+
+  function shufflePhotos(list) {
+    var copy = list.slice();
+    var i;
+    for (i = copy.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var tmp = copy[i];
+      copy[i] = copy[j];
+      copy[j] = tmp;
+    }
+    return copy;
+  }
+
+  function placeCover(img) {
+    if (!img || !photoFrame) return;
+    var fw = photoFrame.clientWidth;
+    var fh = photoFrame.clientHeight;
+    var nw = img.naturalWidth;
+    var nh = img.naturalHeight;
+    if (!fw || !fh || !nw || !nh) return;
+    var scale = Math.max(fw / nw, fh / nh);
+    var w = Math.ceil(nw * scale);
+    var h = Math.ceil(nh * scale);
+    img.style.width = w + "px";
+    img.style.height = h + "px";
+    img.style.left = Math.round((fw - w) / 2) + "px";
+    img.style.top = Math.round((fh - h) / 2) + "px";
+  }
+
+  function setPhotoPanel(on) {
+    if (!photoPanel) return;
+    var wantDash = on ? "dashboard has-photo" : "dashboard";
+    var layoutChanged = !dashEl || dashEl.className !== wantDash;
+    photoPanel.className = on ? "panel panel-photo is-on" : "panel panel-photo";
+    photoPanel.setAttribute("aria-hidden", on ? "false" : "true");
+    if (dashEl) dashEl.className = wantDash;
+    if (layoutChanged) {
+      if (lastCalendarSnapshot) renderCalendar(lastCalendarSnapshot);
+      else fitCalendar();
+    }
+    if (photoA && photoA.className.indexOf("is-on") >= 0) placeCover(photoA);
+    if (photoB && photoB.className.indexOf("is-on") >= 0) placeCover(photoB);
+  }
+
+  function stopPhotos() {
+    if (photoTimer) {
+      window.clearInterval(photoTimer);
+      photoTimer = null;
+    }
+    photoUrls = [];
+    photoKey = "";
+    if (photoA) {
+      photoA.setAttribute("data-want", "");
+      photoA.className = "photo-img";
+      photoA.removeAttribute("src");
+    }
+    if (photoB) {
+      photoB.setAttribute("data-want", "");
+      photoB.className = "photo-img";
+      photoB.removeAttribute("src");
+    }
+    setPhotoPanel(false);
+  }
+
+  function showPhoto(img, url, attempts) {
+    img.onload = function () {
+      if (img.getAttribute("data-want") !== url) return;
+      placeCover(img);
+      var other = img === photoA ? photoB : photoA;
+      var cross = other && other.getAttribute("src") && other.className.indexOf("is-on") >= 0;
+      if (cross) {
+        img.className = "photo-img is-fade";
+        other.className = "photo-img is-fade is-on";
+        var ignored = img.offsetWidth;
+        img.className = "photo-img is-fade is-on";
+        other.className = "photo-img is-fade";
+      } else {
+        img.className = "photo-img is-on";
+        if (other) other.className = "photo-img";
+      }
+      setPhotoPanel(true);
+      var at = photoUrls.indexOf(url);
+      photoIndex = at >= 0 ? at : 0;
+      photoShowingA = img === photoA;
+    };
+    img.onerror = function () {
+      if (img.getAttribute("data-want") !== url) return;
+      if (!photoUrls.length || attempts + 1 >= photoUrls.length) {
+        if (!photoPanel || photoPanel.className.indexOf("is-on") < 0) stopPhotos();
+        return;
+      }
+      var at = photoUrls.indexOf(url);
+      var nextUrl = photoUrls[(at + 1) % photoUrls.length];
+      showPhoto(img, nextUrl, attempts + 1);
+    };
+    img.setAttribute("data-want", url);
+    img.src = url;
+  }
+
+  function advancePhoto() {
+    if (photoUrls.length < 2 || !photoA || !photoB) return;
+    var next = (photoIndex + 1) % photoUrls.length;
+    var img = photoShowingA ? photoB : photoA;
+    showPhoto(img, photoUrls[next], 0);
+  }
+
+  function applyPhotoPlaylist(payload) {
+    if (!photoA || !photoB || !photoPanel) return;
+    var list = [];
+    var raw = payload && payload.photos;
+    if (payload && payload.enabled && raw && raw.length) {
+      var i;
+      for (i = 0; i < raw.length; i++) {
+        if (allowedPhotoUrl(raw[i])) list.push(raw[i]);
+      }
+    }
+    var key = list.slice().sort().join("\n");
+    if (!list.length) {
+      stopPhotos();
+      return;
+    }
+    if (key === photoKey) return;
+    var current = photoUrls.length ? photoUrls[photoIndex] : "";
+    var keepCurrent = current && list.indexOf(current) >= 0 && photoPanel.className.indexOf("is-on") >= 0;
+    photoKey = key;
+    photoUrls = shufflePhotos(list);
+    if (keepCurrent) {
+      photoIndex = photoUrls.indexOf(current);
+      if (photoIndex < 0) photoIndex = 0;
+    } else {
+      photoIndex = 0;
+      photoShowingA = true;
+      setPhotoPanel(true);
+      showPhoto(photoA, photoUrls[0], 0);
+    }
+    if (photoTimer) window.clearInterval(photoTimer);
+    photoTimer = null;
+    if (photoUrls.length > 1) {
+      photoTimer = window.setInterval(advancePhoto, PHOTO_MS);
+    }
+  }
+
+  function pullPhotos() {
+    if (!window.FamilyPhotos || typeof window.FamilyPhotos.getPlaylist !== "function") return;
+    try {
+      applyPhotoPlaylist(JSON.parse(window.FamilyPhotos.getPlaylist()));
+    } catch (e) {}
+  }
+
+  window.onPhotoPlaylist = function (playlist) {
+    applyPhotoPlaylist(playlist);
   };
 
   function start() {
@@ -613,6 +807,7 @@
     window.addEventListener("online", fetchWeather);
     fetchWeather();
     pullCalendar();
+    pullPhotos();
   }
 
   if (document.readyState === "loading") {

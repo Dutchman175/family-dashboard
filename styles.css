@@ -53,11 +53,20 @@ p {
   transform-origin: top left;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+}
+
+.main-col {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .panel-clock {
-  flex: 0 0 auto;
+  flex: 1 1 auto;
+  align-self: flex-start;
+  min-width: 0;
   padding-top: 12px;
 }
 
@@ -103,7 +112,11 @@ p {
   display: flex;
   flex-direction: row;
   align-items: stretch;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  min-height: 470px;
+  max-height: 612px;
+  margin-top: 36px;
+  overflow: hidden;
 }
 
 .panel-row > .panel + .panel {
@@ -113,7 +126,7 @@ p {
 .panel-weather {
   flex: 1;
   min-width: 0;
-  min-height: 470px;
+  min-height: 0;
   background: #1e2838;
   border: 2px solid rgba(255, 255, 255, 0.16);
   border-radius: 28px;
@@ -325,7 +338,7 @@ p {
   display: none;
   width: 620px;
   flex: 0 0 620px;
-  min-height: 470px;
+  min-height: 0;
   background: #1e2838;
   border: 2px solid rgba(255, 255, 255, 0.16);
   border-radius: 28px;
@@ -402,4 +415,264 @@ p {
 
 .calendar-note.is-on {
   display: block;
+}
+
+.panel-photo {
+  display: none;
+  position: relative;
+  width: 720px;
+  flex: 0 0 720px;
+  margin-left: 36px;
+  background: #1e2838;
+  border: 2px solid rgba(255, 255, 255, 0.16);
+  border-radius: 28px;
+  overflow: hidden;
+}
+
+.panel-photo.is-on {
+  display: block;
+}
+
+.photo-frame {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  overflow: hidden;
+}
+
+.photo-img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  opacity: 0;
+  background: none;
+}
+
+.photo-img.is-fade {
+  -webkit-transition: opacity 1400ms linear;
+  transition: opacity 1400ms linear;
+}
+
+.photo-img.is-on {
+  opacity: 1;
+}
+
+/* Album set: photo is the large left panel. Clock, weather, and Upcoming stack on the right. */
+.dashboard.has-photo {
+  flex-direction: row;
+  align-items: stretch;
+  padding: 28px;
+}
+
+.dashboard.has-photo .panel-photo.is-on {
+  width: 1320px;
+  flex: 0 0 1320px;
+  margin-left: 0;
+  margin-right: 22px;
+}
+
+.dashboard.has-photo .main-col {
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.dashboard.has-photo .panel-clock {
+  flex: 0 0 auto;
+  padding-top: 2px;
+}
+
+.dashboard.has-photo .clock {
+  font-size: 104px;
+  letter-spacing: -2px;
+}
+
+.dashboard.has-photo .ampm {
+  margin: 14px 0 0 12px;
+  font-size: 36px;
+}
+
+.dashboard.has-photo .date {
+  margin-top: 2px;
+  font-size: 32px;
+  line-height: 1.15;
+}
+
+.dashboard.has-photo .zone {
+  margin-top: 2px;
+  font-size: 22px;
+}
+
+.dashboard.has-photo .panel-row {
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  margin-top: 14px;
+  overflow: hidden;
+}
+
+.dashboard.has-photo .panel-row > .panel + .panel {
+  margin-left: 0;
+  margin-top: 14px;
+}
+
+.dashboard.has-photo .panel-weather {
+  flex: 0 0 auto;
+  padding: 14px 16px 12px;
+}
+
+.dashboard.has-photo .panel-calendar,
+.dashboard.has-photo .panel-calendar.is-on {
+  width: auto;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  padding: 16px 18px 12px;
+}
+
+.dashboard.has-photo .kicker {
+  margin-bottom: 6px;
+  font-size: 20px;
+  letter-spacing: 2px;
+}
+
+.dashboard.has-photo .panel-calendar .kicker {
+  margin-bottom: 8px;
+  font-size: 22px;
+}
+
+.dashboard.has-photo .weather-body.is-on {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.dashboard.has-photo .weather-current {
+  width: auto;
+  padding-right: 0;
+}
+
+.dashboard.has-photo .weather-forecast {
+  width: auto;
+  margin-top: 8px;
+  padding-top: 8px;
+  padding-left: 0;
+  border-left: 0;
+  border-top: 2px solid rgba(255, 255, 255, 0.16);
+}
+
+.dashboard.has-photo .weather-forecast > .kicker,
+.dashboard.has-photo .updated {
+  display: none;
+}
+
+.dashboard.has-photo .now-main .wx-icon {
+  width: 64px;
+  height: 64px;
+}
+
+.dashboard.has-photo .temp {
+  margin-left: 10px;
+  font-size: 68px;
+  letter-spacing: -1px;
+}
+
+.dashboard.has-photo .condition {
+  margin-top: 0;
+  font-size: 28px;
+}
+
+.dashboard.has-photo .detail {
+  display: inline-block;
+  margin-top: 2px;
+  margin-right: 14px;
+  font-size: 22px;
+  line-height: 1.2;
+}
+
+.dashboard.has-photo .detail-first {
+  margin-top: 2px;
+}
+
+.dashboard.has-photo .forecast-labels {
+  width: 70px;
+  flex: 0 0 70px;
+}
+
+.dashboard.has-photo .forecast-day {
+  overflow: hidden;
+}
+
+.dashboard.has-photo .slot-name {
+  height: 28px;
+  font-size: 22px;
+  line-height: 28px;
+}
+
+.dashboard.has-photo .slot-icon {
+  height: 44px;
+  margin-top: 2px;
+  margin-bottom: 2px;
+}
+
+.dashboard.has-photo .slot-icon .wx-icon {
+  width: 40px;
+  height: 40px;
+}
+
+.dashboard.has-photo .slot-high {
+  height: 32px;
+  font-size: 28px;
+  line-height: 32px;
+}
+
+.dashboard.has-photo .slot-low {
+  height: 28px;
+  font-size: 22px;
+  line-height: 28px;
+}
+
+.dashboard.has-photo .forecast-labels .slot-high,
+.dashboard.has-photo .forecast-labels .slot-low {
+  font-size: 20px;
+  padding-right: 6px;
+}
+
+.dashboard.has-photo .status-title {
+  font-size: 32px;
+}
+
+.dashboard.has-photo .status-body {
+  max-width: none;
+  font-size: 22px;
+}
+
+.dashboard.has-photo .calendar-day {
+  margin-top: 10px;
+  font-size: 22px;
+}
+
+.dashboard.has-photo .calendar-row {
+  height: 38px;
+}
+
+.dashboard.has-photo .calendar-time {
+  width: 138px;
+  flex: 0 0 138px;
+  font-size: 26px;
+  line-height: 38px;
+}
+
+.dashboard.has-photo .calendar-title {
+  font-size: 26px;
+  line-height: 38px;
+}
+
+.dashboard.has-photo .calendar-empty {
+  font-size: 28px;
+}
+
+.dashboard.has-photo .calendar-note {
+  font-size: 22px;
 }
