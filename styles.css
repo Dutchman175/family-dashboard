@@ -447,6 +447,10 @@ p {
   top: 0;
   left: 0;
   opacity: 0;
+  background: none;
+}
+
+.photo-img.is-fade {
   -webkit-transition: opacity 1400ms linear;
   transition: opacity 1400ms linear;
 }

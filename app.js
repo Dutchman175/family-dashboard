@@ -708,9 +708,18 @@
     img.onload = function () {
       if (img.getAttribute("data-want") !== url) return;
       placeCover(img);
-      img.className = "photo-img is-on";
       var other = img === photoA ? photoB : photoA;
-      if (other) other.className = "photo-img";
+      var cross = other && other.getAttribute("src") && other.className.indexOf("is-on") >= 0;
+      if (cross) {
+        img.className = "photo-img is-fade";
+        other.className = "photo-img is-fade is-on";
+        var ignored = img.offsetWidth;
+        img.className = "photo-img is-fade is-on";
+        other.className = "photo-img is-fade";
+      } else {
+        img.className = "photo-img is-on";
+        if (other) other.className = "photo-img";
+      }
       setPhotoPanel(true);
       var at = photoUrls.indexOf(url);
       photoIndex = at >= 0 ? at : 0;
