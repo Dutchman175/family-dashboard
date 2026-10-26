@@ -112,6 +112,7 @@
     }
     if (!shown) renderLocalClock(now);
     if (typeof showTodayJoke === "function") showTodayJoke();
+    refreshMessagesForDay();
   }
 
   function chicagoDateISO(now) {
@@ -1147,7 +1148,7 @@
   var messagesEl = document.getElementById("messages");
   var messageListEl = document.getElementById("message-list");
   var lastMessages = null;
-  var MESSAGE_TTL = 24 * 60 * 60 * 1000;
+  var messageDayKey = "";
 
   function asPlain(value, max) {
     var s = String(value == null ? "" : value);
@@ -1165,6 +1166,63 @@
     var hr = Math.floor(min / 60);
     if (hr < 24) return hr === 1 ? "1 hour ago" : (hr + " hours ago");
     return "1 day ago";
+  }
+
+  function chicagoOffsetMinutes(utcMillis) {
+    var fmt = new Intl.DateTimeFormat("en-US", {
+      timeZone: TIME_ZONE,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit"
+    });
+    var parts = fmt.formatToParts(new Date(utcMillis));
+    var map = {};
+    var i;
+    for (i = 0; i < parts.length; i++) map[parts[i].type] = parts[i].value;
+    var hour = parseInt(map.hour, 10) % 24;
+    var asUtc = Date.UTC(+map.year, +map.month - 1, +map.day, hour, +map.minute, +map.second);
+    return Math.round((asUtc - utcMillis) / 60000);
+  }
+
+  function chicagoMidnightMillis(now) {
+    try {
+      return chicagoMidnightMillisUnchecked(now);
+    } catch (e) {
+      return new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    }
+  }
+
+  function chicagoMidnightMillisUnchecked(now) {
+    var iso = chicagoDateISO(now);
+    var bits = String(iso || "").split("-");
+    var y = parseInt(bits[0], 10);
+    var m = parseInt(bits[1], 10);
+    var d = parseInt(bits[2], 10);
+    if (!y || !m || !d) {
+      return new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    }
+    var guess = Date.UTC(y, m - 1, d, 0, 0, 0);
+    var offset = chicagoOffsetMinutes(guess);
+    var instant = guess - offset * 60000;
+    var offset2 = chicagoOffsetMinutes(instant);
+    if (offset2 !== offset) instant = guess - offset2 * 60000;
+    return instant;
+  }
+
+  function refreshMessagesForDay() {
+    var key = chicagoDateISO(new Date()) || "";
+    if (!key) return;
+    if (!messageDayKey) {
+      messageDayKey = key;
+      return;
+    }
+    if (key === messageDayKey) return;
+    messageDayKey = key;
+    if (lastMessages) renderMessages(lastMessages);
   }
 
   function renderMessages(payload) {
@@ -1185,7 +1243,7 @@
       var sender = asPlain(item.sender, 40);
       var at = Number(item.at);
       if (!text || !isFinite(at)) continue;
-      if (Date.now() - at >= MESSAGE_TTL) continue;
+      if (at < chicagoMidnightMillis(new Date())) continue;
       visible.push({ sender: sender || "Family", text: text, at: at });
     }
     notesVisible = visible.length > 0;

@@ -66,6 +66,7 @@ class MessageRepository(context: Context) {
             }
             snapshot = MessageBoard.toJson(hasTopic(), messages.toList(), false)
         }
+        scheduleMidnight()
         timer.scheduleWithFixedDelay(
             {
                 try {
@@ -218,8 +219,9 @@ class MessageRepository(context: Context) {
     }
 
     /**
-     * One JSON stream. since=24h delivers messages posted while the TV was
-     * off, then the same connection stays open for new ones.
+     * One JSON stream. since= today's Chicago midnight delivers messages posted
+     * while the TV was off today, then the same connection stays open for new
+     * ones. Anything older is ignored when the line is read.
      */
     private fun stream(gen: Int, topic: String): Boolean {
         val conn = open(gen, topic)
@@ -243,7 +245,7 @@ class MessageRepository(context: Context) {
     }
 
     private fun open(gen: Int, topic: String): HttpURLConnection {
-        val conn = URL(MessageBoard.endpoint(topic)).openConnection() as HttpURLConnection
+        val conn = URL(MessageBoard.endpoint(topic, System.currentTimeMillis())).openConnection() as HttpURLConnection
         conn.instanceFollowRedirects = false
         conn.useCaches = false
         conn.connectTimeout = 15_000
@@ -341,6 +343,29 @@ class MessageRepository(context: Context) {
         if (notify) {
             publish(pulse)
         }
+    }
+
+    /**
+     * Clears the board at the next America/Chicago midnight without waiting
+     * for a new message or an app restart, then arms the following night.
+     */
+    private fun scheduleMidnight() {
+        val now = System.currentTimeMillis()
+        val delay = (MessageBoard.nextMidnightMillis(now) - now).coerceAtLeast(1_000L)
+        timer.schedule(
+            {
+                try {
+                    publish(false)
+                } catch (thrown: Exception) {
+                    Log.w(TAG, "midnight refresh failed ${thrown.javaClass.simpleName}")
+                }
+                if (started.get()) {
+                    scheduleMidnight()
+                }
+            },
+            delay,
+            TimeUnit.MILLISECONDS
+        )
     }
 
     private fun publish(requestPulse: Boolean) {

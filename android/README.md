@@ -89,7 +89,7 @@ adb shell am start -n com.dutchman175.familydashboard/.MainActivity --es photo_a
 
 ## Message board
 
-Messages show in a notes strip. On a new install that strip sits under the photo, the full width of that column. Each message is one line, such as `Cassie, 5 min ago: Soccer moved to 6.` Longer text is cut off with an ellipsis. The strip stays hidden when there are no messages. If it is still the row directly under the photo, the photo grows into that space. If you have moved the strip somewhere else, that space stays empty. Messages disappear after 24 hours. A new one briefly outlines the box in gold. The boxes can be moved; see Arrange the boxes.
+Messages show in a notes strip. On a new install that strip sits under the photo, the full width of that column. Each message is one line, such as `Cassie, 5 min ago: Soccer moved to 6.` Longer text is cut off with an ellipsis. The strip stays hidden when there are no messages. If it is still the row directly under the photo, the photo grows into that space. If you have moved the strip somewhere else, that space stays empty. Messages clear at midnight Central Time. A new one briefly outlines the box in gold. The boxes can be moved; see Arrange the boxes.
 
 The TV listens to one topic on the free public service ntfy.sh. There is no account. The topic name is long and random, and it works like a password: anyone who knows it can post. Treat it like the calendar link and the album link. Do not put the real name in git, in a screenshot, in a chat, or in a log. The examples below use `PASTE-THE-TOPIC-NAME`. Replace that with a name you make up, 16 to 64 characters, using only letters, numbers, underscores, and hyphens.
 
@@ -99,7 +99,7 @@ Set it on the TV:
 adb shell am start -n com.dutchman175.familydashboard/.MainActivity --es message_topic 'PASTE-THE-TOPIC-NAME'
 ```
 
-The app keeps a live connection while the dashboard or the screensaver is on screen. If the connection drops, it retries with a longer pause between tries. When the TV turns on, it also picks up messages from the last 24 hours.
+The app keeps a live connection while the dashboard or the screensaver is on screen. If the connection drops, it retries with a longer pause between tries. When the TV turns on, it also picks up messages posted since midnight Central Time.
 
 To turn the message board off:
 

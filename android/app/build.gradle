@@ -16,6 +16,7 @@ android {
     }
 
     compileOptions {
+        coreLibraryDesugaringEnabled true
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
     }
@@ -69,6 +70,7 @@ android {
 }
 
 dependencies {
+    coreLibraryDesugaring "com.android.tools:desugar_jdk_libs:2.1.5"
     implementation "androidx.webkit:webkit:1.12.1"
     implementation "net.sf.biweekly:biweekly:0.6.8"
     testImplementation "junit:junit:4.13.2"
