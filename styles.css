@@ -423,6 +423,12 @@ p {
   display: block;
 }
 
+.photo-col {
+  display: none;
+  min-width: 0;
+  min-height: 0;
+}
+
 .panel-messages {
   display: none;
   min-width: 0;
@@ -430,15 +436,15 @@ p {
   background: #1e2838;
   border: 2px solid rgba(255, 255, 255, 0.16);
   border-radius: 28px;
-  padding: 28px 32px 22px;
+  padding: 12px 22px;
   overflow: hidden;
 }
 
 .panel-messages.is-on {
   display: flex;
   flex-direction: column;
-  width: 520px;
-  flex: 0 0 520px;
+  width: auto;
+  flex: 0 0 auto;
 }
 
 .panel-messages.is-pulse {
@@ -471,28 +477,20 @@ p {
 }
 
 .message + .message {
-  margin-top: 16px;
+  margin-top: 6px;
 }
 
-.message-who {
+.message-line {
   font-size: 28px;
-  line-height: 1.2;
+  line-height: 36px;
   font-weight: 700;
-  color: #f2c14d;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.message-text {
-  margin-top: 4px;
-  font-size: 32px;
-  line-height: 1.25;
-  font-weight: 700;
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
+.message-who {
+  color: #f2c14d;
 }
 
 .panel-photo {
@@ -613,18 +611,41 @@ p {
   color: #ddd6cb;
 }
 
-/* Album set: photo is the large left panel. Clock, weather, and Upcoming stack on the right. */
+/* Album set: photo fills the left column. Messages, when present, sit under it. Clock, weather, and Upcoming stack on the right. */
 .dashboard.has-photo {
   flex-direction: row;
   align-items: stretch;
   padding: 28px;
 }
 
-.dashboard.has-photo .panel-photo.is-on {
+.dashboard.has-messages:not(.has-photo) .photo-col {
+  display: flex;
+  flex-direction: column;
+  order: 2;
+  width: auto;
+  flex: 0 0 auto;
+  margin-top: 28px;
+}
+
+.dashboard.has-photo .photo-col {
+  display: flex;
+  flex-direction: column;
   width: 1320px;
   flex: 0 0 1320px;
-  margin-left: 0;
   margin-right: 22px;
+  min-height: 0;
+}
+
+.dashboard.has-photo .panel-photo.is-on {
+  width: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.dashboard.has-photo .panel-messages.is-on {
+  margin-top: 14px;
 }
 
 .dashboard.has-photo .main-col {
@@ -829,33 +850,6 @@ p {
 
 .dashboard.has-photo .calendar-note {
   font-size: 22px;
-}
-
-.dashboard.has-photo .panel-messages,
-.dashboard.has-photo .panel-messages.is-on {
-  width: auto;
-  flex: 0 0 auto;
-  padding: 12px 16px 12px;
-}
-
-.dashboard.has-photo .panel-messages .kicker {
-  margin-bottom: 8px;
-  font-size: 22px;
-}
-
-.dashboard.has-photo .message + .message {
-  margin-top: 10px;
-}
-
-.dashboard.has-photo .message-who {
-  font-size: 22px;
-}
-
-.dashboard.has-photo .message-text {
-  margin-top: 2px;
-  font-size: 26px;
-  line-height: 1.25;
-  -webkit-line-clamp: 3;
 }
 
 .photo-settings .kicker {

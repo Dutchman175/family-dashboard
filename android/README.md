@@ -89,7 +89,7 @@ adb shell am start -n com.dutchman175.familydashboard/.MainActivity --es photo_a
 
 ## Message board
 
-Messages show in a box on the right, between the weather and Upcoming. The box stays hidden when there are no messages. Each message shows the sender and how long ago, for example `Cassie, 5 min ago`, then the text. Messages disappear after 24 hours. A new one briefly outlines the box in gold.
+Messages show in a short box under the photo, the full width of that column. Each message is one line, such as `Cassie, 5 min ago: Soccer moved to 6.` Longer text is cut off with an ellipsis. The box stays hidden when there are no messages, and the photo fills the left side again. The right side stays the clock, weather, and Upcoming. Messages disappear after 24 hours. A new one briefly outlines the box in gold.
 
 The TV listens to one topic on the free public service ntfy.sh. There is no account. The topic name is long and random, and it works like a password: anyone who knows it can post. Treat it like the calendar link and the album link. Do not put the real name in git, in a screenshot, in a chat, or in a log. The examples below use `PASTE-THE-TOPIC-NAME`. Replace that with a name you make up, 16 to 64 characters, using only letters, numbers, underscores, and hyphens.
 

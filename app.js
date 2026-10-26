@@ -1208,9 +1208,9 @@
     clearNode(messageListEl);
     for (i = 0; i < visible.length; i++) {
       var note = visible[i];
-      var block = el("div", "message");
-      block.appendChild(el("p", "message-who", note.sender + ", " + agoLabel(note.at)));
-      block.appendChild(el("p", "message-text", note.text));
+      var block = el("p", "message message-line");
+      block.appendChild(el("span", "message-who", note.sender + ", " + agoLabel(note.at) + ":"));
+      block.appendChild(document.createTextNode(" " + note.text));
       messageListEl.appendChild(block);
     }
     fitCalendar();
