@@ -90,12 +90,15 @@ function bedtimeClock(hour, minute) {
   return h + ":" + mm + " " + (hour < 12 ? "AM" : "PM");
 }
 
-function bedtimeCountdown(mins) {
-  var h = Math.floor(mins / 60);
-  var m = mins % 60;
-  if (h > 0 && m > 0) return "Bedtime in " + h + "h " + m + "m";
-  if (h > 0) return "Bedtime in " + h + "h";
-  return "Bedtime in " + m + "m";
+function bedtimeCountdown(totalSeconds) {
+  var secs = totalSeconds;
+  if (secs < 1) secs = 1;
+  var h = Math.floor(secs / 3600);
+  var m = Math.floor((secs % 3600) / 60);
+  var s = secs % 60;
+  if (h > 0) return "Bedtime in " + h + "h " + m + "m " + s + "s";
+  if (m > 0) return "Bedtime in " + m + "m " + s + "s";
+  return "Bedtime in " + s + "s";
 }
 
 function bedtimeRows(now, config) {
@@ -129,14 +132,14 @@ function bedtimeRows(now, config) {
       line = "Bedtime! \uD83C\uDF19";
       time = "";
     } else {
-      var mins = Math.ceil(remain / 60000);
-      if (mins <= soon) phase = "soon";
-      else if (mins <= windowMin) phase = "count";
+      var secs = Math.ceil(remain / 1000);
+      if (secs <= soon * 60) phase = "soon";
+      else if (secs <= windowMin * 60) phase = "count";
       if (phase === "later") {
         line = "Bedtime " + clock;
         time = "";
       } else {
-        line = bedtimeCountdown(mins);
+        line = bedtimeCountdown(secs);
         time = clock;
       }
     }

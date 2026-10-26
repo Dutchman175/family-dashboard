@@ -1447,27 +1447,30 @@
   function fitWeather() {
     var panel = boxEls.weather;
     if (!panel || !bodyEl || !statusEl) return;
-    var w = panel.clientWidth - 24;
-    var h = panel.clientHeight - 24;
+    var w = panel.clientWidth - 40;
+    var h = panel.clientHeight - 48;
     if (w < 40 || h < 40) return;
     setFlag(panel, "is-compact", false);
     setFlag(panel, "is-stack", false);
     var refW = 980;
-    var refH = 420;
-    if (h < 170) {
+    var refH = 480;
+    if (h < 150) {
       setFlag(panel, "is-compact", true);
       refW = 900;
       refH = 130;
     } else if (w < h * 1.7) {
       setFlag(panel, "is-stack", true);
       refW = 522;
-      refH = 340;
+      refH = 360;
     }
+    bodyEl.style.width = refW + "px";
+    bodyEl.style.height = "auto";
+    var natural = bodyEl.scrollHeight;
+    if (natural > refH) refH = natural;
     var scale = Math.min(w / refW, h / refH);
     if (!(scale > 0)) scale = 1;
     scale = scale * 0.98;
     var transform = "scale(" + scale + ")";
-    bodyEl.style.width = refW + "px";
     bodyEl.style.height = refH + "px";
     bodyEl.style.webkitTransform = transform;
     bodyEl.style.transform = transform;
@@ -1682,10 +1685,25 @@
     var h = panel.clientHeight - 12;
     if (w < 40 || h < 24) return;
     var line = Math.floor(h / count);
-    var px = Math.round(Math.min(w * 0.052, line * 0.62));
-    if (px < 16) px = 16;
-    if (px > 48) px = 48;
+    var px = Math.round(Math.min(w * 0.045, line * 0.55));
+    if (px < 15) px = 15;
+    if (px > 42) px = 42;
     panel.style.setProperty("--bed-px", String(px));
+    var guard = 0;
+    while (guard < 18 && px > 14) {
+      var fit = true;
+      var r;
+      for (r = 0; r < bedtimeListEl.children.length; r++) {
+        var row = bedtimeListEl.children[r];
+        var text = row.children[1];
+        if (text && text.scrollWidth > text.clientWidth + 1) fit = false;
+        if (row.scrollWidth > panel.clientWidth - 8) fit = false;
+      }
+      if (fit) break;
+      px -= 1;
+      panel.style.setProperty("--bed-px", String(px));
+      guard++;
+    }
   }
 
   function editorWords() {

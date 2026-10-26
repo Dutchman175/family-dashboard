@@ -196,7 +196,7 @@ Times are Central Time. Edit them in `bedtime.js`. Weekend nights are Friday and
 - Jack: 8:00 PM on school nights, 9:00 PM on Friday and Saturday nights.
 - Girls: 7:00 PM on school nights, 8:00 PM on Friday and Saturday nights.
 
-Earlier in the day the row is dim and says `Bedtime 8:00 PM`. About three hours before, it counts down, such as `Bedtime in 2h 15m`, and still shows the clock time. The last 15 minutes turn gold. At bedtime it says `Bedtime! 🌙` for about an hour, then it shows the next night.
+Earlier in the day the row is dim and says `Bedtime 8:00 PM`. About three hours before, it counts down every second, such as `Bedtime in 1h 48m 12s`, and still shows the clock time. The last 15 minutes turn gold. At bedtime it says `Bedtime! 🌙` for about an hour, then it shows the next night.
 
 In the short strip under the weather, the question and the answer both show, with the answer in gold. If you make the box taller, the question shows first and the answer fades in after about four seconds. The words get bigger when the box gets bigger.
 
