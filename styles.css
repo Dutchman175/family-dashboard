@@ -1446,20 +1446,29 @@ p {
 .dashboard.is-grid .weather-body,
 .dashboard.is-grid .weather-status {
   position: absolute;
-  left: 22px;
-  top: 26px;
+  left: 16px;
+  top: 14px;
   transform-origin: top left;
   -webkit-transform-origin: top left;
 }
 
-.dashboard.is-grid .weather-body.is-on {
+.dashboard.is-grid .panel-weather:not(.is-stack):not(.is-compact) .weather-body.is-on {
   align-items: flex-start;
 }
 
-.dashboard.is-grid .weather-current > .kicker,
-.dashboard.is-grid .weather-forecast > .kicker {
-  line-height: 1.45;
-  padding-top: 0.12em;
-  margin-top: 0;
-  margin-bottom: 10px;
+.dashboard.is-grid .panel-weather:not(.is-stack):not(.is-compact) .weather-current > .kicker {
+  position: absolute;
+  left: 0;
+  top: 0;
+  margin: 0;
+  padding-top: 1px;
+  font-size: 56px;
+  line-height: 1.05;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.dashboard.is-grid .panel-weather:not(.is-stack):not(.is-compact) .weather-current,
+.dashboard.is-grid .panel-weather:not(.is-stack):not(.is-compact) .weather-forecast {
+  padding-top: 66px;
 }

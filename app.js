@@ -1447,30 +1447,27 @@
   function fitWeather() {
     var panel = boxEls.weather;
     if (!panel || !bodyEl || !statusEl) return;
-    var w = panel.clientWidth - 40;
-    var h = panel.clientHeight - 48;
+    var w = panel.clientWidth - 24;
+    var h = panel.clientHeight - 24;
     if (w < 40 || h < 40) return;
     setFlag(panel, "is-compact", false);
     setFlag(panel, "is-stack", false);
     var refW = 980;
-    var refH = 480;
-    if (h < 150) {
+    var refH = 420;
+    if (h < 170) {
       setFlag(panel, "is-compact", true);
       refW = 900;
       refH = 130;
     } else if (w < h * 1.7) {
       setFlag(panel, "is-stack", true);
       refW = 522;
-      refH = 360;
+      refH = 340;
     }
-    bodyEl.style.width = refW + "px";
-    bodyEl.style.height = "auto";
-    var natural = bodyEl.scrollHeight;
-    if (natural > refH) refH = natural;
     var scale = Math.min(w / refW, h / refH);
     if (!(scale > 0)) scale = 1;
     scale = scale * 0.98;
     var transform = "scale(" + scale + ")";
+    bodyEl.style.width = refW + "px";
     bodyEl.style.height = refH + "px";
     bodyEl.style.webkitTransform = transform;
     bodyEl.style.transform = transform;
