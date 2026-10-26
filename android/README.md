@@ -27,7 +27,7 @@ adb connect TV_IP
 adb install -r FamilyDashboard.apk
 ```
 
-`-r` replaces the copy that is already installed and keeps the calendar link, the album, the message topic, the photo timing, and the box layout. The signing key has to stay the same, and the new APK needs a higher versionCode. Open **Family Dashboard** from the apps row. Back leaves the app.
+`-r` replaces the copy that is already installed and keeps the calendar link, the album, the message topic, the photo timing, and the box layout. The signing key has to stay the same, and the new APK needs a higher versionCode. Open **Family Dashboard** from Apps. On a Fire TV, a sideloaded app shows in Your Apps & Channels. The screen stays on while the app is open, because Fire OS usually will not let you pick a third-party screensaver. Home or Back leaves it.
 
 ## Updates on the TV
 
@@ -41,7 +41,7 @@ That file is only a version code, a version name, the APK address, and a sha256.
 
 The check does not use this repo, and it does not use a GitHub token. This repo can be private. The public repo should contain only `version.json` and `FamilyDashboard.apk`. Do not put the calendar link, the album link, the ntfy topic, or the keystore there.
 
-The first time Android blocks the install, the app explains why and opens the setting **Install unknown apps** for Family Dashboard. Turn that on, come back, and press OK again. That setting is once per TV.
+The first time Fire TV blocks the install, the app explains why and opens **Install unknown apps** for Family Dashboard. On Fire OS 7 and 8 that permission is per app: Settings, My Fire TV, Developer options, Install unknown apps, Family Dashboard. Turn it on, come back, and press Select again. The installer then shows Amazon's own confirm screen. The app does not use Google Play Services.
 
 To publish a later build, raise versionCode, build the signed APK with the same keystore, and replace the two files on the public repo's latest release. `version.json` looks like this, with the real sha256 of that APK:
 
@@ -173,7 +173,7 @@ The free ntfy app from the App Store is another way to post. Install ntfy, choos
 
 ## Arrange the boxes
 
-The dashboard is a 12 by 8 grid. The starting arrangement keeps the v1.4.0 photo at the same size, with the notes strip under it. On the right are the clock, the weather, a Joke of the Day strip, and Upcoming. Upcoming is one row shorter than in v1.4.0 so the joke fits. The photo is not smaller. Hold OK on the remote for about half a second to arrange. A line at the bottom of the screen says `Hold OK to arrange`. The screensaver uses the saved arrangement and cannot open the editor.
+The dashboard is a 12 by 8 grid. The starting arrangement keeps the v1.4.0 photo at the same size, with the notes strip under it. On the right are the clock, the weather, bedtime, a Joke of the Day strip, and Upcoming. The photo is not smaller. Hold the center button (Select on a Fire TV remote, OK on a TiVo remote) for about half a second to arrange. The three-line Menu button on a Fire TV remote opens Arrange immediately. A line at the bottom of the screen says `Hold Select or press Menu to arrange`. The screensaver uses the saved arrangement and cannot open the editor.
 
 While arranging, the arrow buttons move a gold outline from box to box. Down from the lowest box reaches Save, Cancel, and Reset to default. Left and right switch those three. Up goes back to the boxes. OK on a box picks it up in Move. The arrows then slide it by one square. OK again switches to Resize. In Resize, left and right change the width and up and down change the height. A box will not leave the screen and will not cover another box. The gold line at the top of the editor says which box you are on and whether you are in Move or Resize.
 
@@ -181,7 +181,7 @@ Back puts the box down. If you are not holding a box, Back leaves and throws awa
 
 The arrangement is stored on the device with the calendar link, the album link, the message topic, and the seconds-per-photo setting. Installing an update does not clear those.
 
-A short press of OK is unchanged. On the photo, it opens seconds per photo. On Upcoming, it opens the month view. The joke box has no extra button. Hold OK to move it like the others.
+A short press of Select is unchanged. On the photo, it opens seconds per photo. On Upcoming, it opens the month view. Left and right change the month. A Fire TV remote has no channel or page buttons, so rewind and fast-forward change the month too. The joke box has no extra button. Hold Select, or press Menu, to move it like the others.
 
 ## Joke of the Day
 
@@ -241,6 +241,8 @@ adb shell settings get secure screensaver_components
 
 It should print `com.dutchman175.familydashboard/.DashboardDreamService`.
 
+The `screensaver_components` command does store the value on current Fire OS. `settings get secure screensaver_components` should print the Family Dashboard dream. Amazon still does not offer this in the on-screen settings.
+
 **Fire OS 8** adds an Ambient Experience screensaver that ignores other dreams until it is turned off. Then reboot:
 
 ```
@@ -248,7 +250,7 @@ adb shell settings put secure amazon_ambient_enabled 0
 adb reboot
 ```
 
-That extra command was confirmed on Fire OS 8.1 in 2025. It is still not a setting Amazon supports, and a software update can turn Amazon’s screensaver back on. If the dashboard stops appearing when the TV is idle, run the commands again.
+That extra command was confirmed on Fire OS 8.1 through late 2025, including a Fire TV Stick 4K Max (2nd gen) on Fire OS 8.1.4.9. It is not a setting Amazon supports, and a software update can turn Amazon’s screensaver back on. Screensaver developers also reported in 2026 that some current Fire OS 8 builds ignore a third-party dream even after `amazon_ambient_enabled` is set to 0. If the dashboard never appears when the stick is idle, leave the Family Dashboard app open instead. The screen stays on while the app is in front.
 
 To go back to Amazon’s photos screensaver:
 

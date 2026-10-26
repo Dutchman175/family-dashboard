@@ -9,8 +9,10 @@ import android.view.View;
 import android.view.WindowManager;
 
 /**
- * Home-screen launcher. Opens the dashboard full screen and stays awake
- * until Back is pressed.
+ * Home-screen launcher. Opens the dashboard full screen.
+ * FLAG_KEEP_SCREEN_ON keeps the panel awake while this app is in front.
+ * Fire OS usually will not run a third-party screensaver, so leaving the
+ * app open is the reliable way to keep the dashboard on screen.
  */
 public class MainActivity extends Activity {
     private static final int FULLSCREEN =

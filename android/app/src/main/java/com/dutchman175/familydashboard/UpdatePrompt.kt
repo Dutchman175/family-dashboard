@@ -167,6 +167,6 @@ class UpdatePrompt(private val activity: Activity, root: View) {
     }
 
     private fun isOk(code: Int): Boolean {
-        return code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER
+        return RemoteKeys.isOk(code)
     }
 }

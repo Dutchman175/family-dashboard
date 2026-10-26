@@ -11,7 +11,7 @@ android {
         applicationId "com.dutchman175.familydashboard"
         minSdk 22
         targetSdk 34
-        versionCode 9
+        versionCode 10
         versionName "1.5.0"
     }
 
@@ -70,6 +70,7 @@ android {
 }
 
 dependencies {
+    // No Google Play Services. Fire TV does not include them.
     coreLibraryDesugaring "com.android.tools:desugar_jdk_libs:2.1.5"
     implementation "androidx.webkit:webkit:1.12.1"
     implementation "net.sf.biweekly:biweekly:0.6.8"

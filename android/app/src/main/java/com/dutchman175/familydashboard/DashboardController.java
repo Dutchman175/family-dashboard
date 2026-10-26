@@ -394,6 +394,15 @@ final class DashboardController {
         }
         int action = event.getAction();
         int code = event.getKeyCode();
+        if (RemoteKeys.isMenu(code)) {
+            if (action == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
+                okHeld = false;
+                okLongFired = false;
+                handler.removeCallbacks(okLongRunnable);
+                openEditor();
+            }
+            return true;
+        }
         if (code == KeyEvent.KEYCODE_BACK) {
             if (editor.isOpen() || suppressFinishBack || editorBackFromKey) {
                 if (action == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
@@ -475,11 +484,11 @@ final class DashboardController {
         }
         if (monthOpen) {
             resetIdle();
-            if (isPreviousMonth(code)) {
+            if (RemoteKeys.isPreviousMonth(code)) {
                 injectKey("prev");
                 return true;
             }
-            if (isNextMonth(code)) {
+            if (RemoteKeys.isNextMonth(code)) {
                 injectKey("next");
                 return true;
             }
@@ -772,19 +781,7 @@ final class DashboardController {
     }
 
     private static boolean isOk(int code) {
-        return code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER;
-    }
-
-    private static boolean isPreviousMonth(int code) {
-        return code == KeyEvent.KEYCODE_DPAD_LEFT
-                || code == KeyEvent.KEYCODE_CHANNEL_DOWN
-                || code == KeyEvent.KEYCODE_PAGE_UP;
-    }
-
-    private static boolean isNextMonth(int code) {
-        return code == KeyEvent.KEYCODE_DPAD_RIGHT
-                || code == KeyEvent.KEYCODE_CHANNEL_UP
-                || code == KeyEvent.KEYCODE_PAGE_DOWN;
+        return RemoteKeys.isOk(code);
     }
 
     private void pushSnapshot(final String json) {

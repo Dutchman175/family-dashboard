@@ -8,6 +8,6 @@
     <string name="update_ready">Update ready - press OK to install</string>
     <string name="update_later">Press Back to wait</string>
     <string name="update_permission_title">Allow this app to install updates</string>
-    <string name="update_permission_body">Android blocks a sideloaded update until Family Dashboard is allowed to install unknown apps. This switch is only for updates of this app. Press OK to open that setting, turn it on, then come back and press OK again.</string>
-    <string name="update_permission_manual">The settings page did not open. On the TV, open Settings, Apps, Special app access, Install unknown apps, and turn it on for Family Dashboard. Then come back and press OK.</string>
+    <string name="update_permission_body">Fire TV blocks a sideloaded update until Family Dashboard is allowed to install unknown apps. That switch is only for updates of this app. Press Select to open it. On a Fire TV it is Settings, My Fire TV, Developer options, Install unknown apps, Family Dashboard. If Developer options is hidden, open My Fire TV, About, and press Select on the device name seven times. Turn the switch on, come back, and press Select again.</string>
+    <string name="update_permission_manual">The settings page did not open. On the Fire TV, open Settings, My Fire TV, Developer options, Install unknown apps, and turn it on for Family Dashboard. If Developer options is hidden, open My Fire TV, About, and press Select on the device name seven times. Then come back and press Select.</string>
 </resources>
