@@ -12,6 +12,9 @@ class DashboardApp : Application() {
     lateinit var messages: MessageRepository
         private set
 
+    lateinit var layouts: LayoutRepository
+        private set
+
     override fun onCreate() {
         super.onCreate()
         calendar = CalendarRepository(this)
@@ -20,5 +23,6 @@ class DashboardApp : Application() {
         photos.start()
         messages = MessageRepository(this)
         messages.start()
+        layouts = LayoutRepository(this)
     }
 }

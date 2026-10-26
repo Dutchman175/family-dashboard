@@ -11,13 +11,13 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<link rel="stylesheet" href="styles.css?v=10">
+<link rel="stylesheet" href="styles.css?v=13">
 </head>
 <body>
 <div id="stage" class="stage">
   <div id="dashboard" class="dashboard">
-    <div class="photo-col" id="photo-col">
-    <section class="panel panel-photo" id="photo" aria-hidden="true">
+    <section class="panel panel-photo" id="photo" data-label="Photo" aria-hidden="true">
+      <p id="photo-placeholder" class="photo-placeholder">Photo</p>
       <div class="photo-frame" id="photo-frame">
         <img id="photo-bg-a" class="photo-blur" alt="">
         <img id="photo-bg-b" class="photo-blur" alt="">
@@ -31,12 +31,11 @@
         <p class="photo-settings-hint">Left and right change it · OK closes</p>
       </div>
     </section>
-    <section class="panel panel-messages" id="messages" aria-live="polite" aria-hidden="true">
+    <section class="panel panel-messages" id="messages" data-label="Notes" aria-live="polite" aria-hidden="true">
+      <p id="notes-placeholder" class="notes-placeholder">Notes</p>
       <div id="message-list" class="message-list"></div>
     </section>
-    </div>
-    <div class="main-col">
-    <header class="panel panel-clock">
+    <header class="panel panel-clock" id="clock-panel" data-label="Clock">
       <div class="clock-row">
         <p id="clock" class="clock">12:00</p>
         <p id="ampm" class="ampm">PM</p>
@@ -44,13 +43,7 @@
       <p id="date" class="date">Saturday, October 24</p>
       <p id="zone" class="zone">Central Time</p>
     </header>
-
-    <!--
-      More panels (chores, countdowns) go in .panel-row
-      as more <section class="panel"> blocks.
-    -->
-    <div class="panel-row">
-      <section class="panel panel-weather" id="weather" aria-live="polite">
+      <section class="panel panel-weather" id="weather" data-label="Weather" aria-live="polite">
         <div id="weather-status" class="weather-status">
           <p id="weather-status-title" class="status-title">Loading weather</p>
           <p id="weather-status-body" class="status-body">Checking the forecast for Lowell, Indiana.</p>
@@ -60,12 +53,25 @@
           <div id="weather-forecast" class="weather-forecast"></div>
         </div>
       </section>
-      <section class="panel panel-calendar" id="calendar" aria-live="polite">
+      <section class="panel panel-joke" id="joke" data-label="Joke">
+        <p class="joke-kicker">Joke of the Day</p>
+        <p id="joke-setup" class="joke-setup"></p>
+        <p id="joke-punch" class="joke-punch"></p>
+      </section>
+      <section class="panel panel-calendar" id="calendar" data-label="Upcoming" aria-live="polite">
         <p class="kicker">Upcoming</p>
         <div id="calendar-list" class="calendar-list"></div>
         <p id="calendar-note" class="calendar-note"></p>
       </section>
-    </div>
+    <p id="layout-hint" class="layout-hint">Hold OK to arrange</p>
+    <div id="layout-bar" class="layout-bar" aria-hidden="true">
+      <p id="layout-mode" class="layout-mode">Move</p>
+      <p id="layout-help" class="layout-help"></p>
+      <div class="layout-actions">
+        <p id="layout-save" class="layout-action">Save</p>
+        <p id="layout-cancel" class="layout-action">Cancel</p>
+        <p id="layout-reset" class="layout-action">Reset to default</p>
+      </div>
     </div>
     <div id="month" class="month" aria-hidden="true">
       <div class="month-head">
@@ -88,6 +94,7 @@
 <noscript>
   <p class="noscript">JavaScript is off, so the clock and weather cannot run.</p>
 </noscript>
-<script src="app.js?v=10"></script>
+<script src="jokes.js?v=13"></script>
+<script src="app.js?v=13"></script>
 </body>
 </html>

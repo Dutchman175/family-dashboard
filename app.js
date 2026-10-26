@@ -41,7 +41,8 @@
     dashEl.style.top = y + "px";
     dashEl.style.webkitTransform = transform;
     dashEl.style.transform = transform;
-    fitCalendar();
+    if (typeof applyLayout === "function") applyLayout();
+    else fitCalendar();
   }
 
   function renderZonedClock(now) {
@@ -110,6 +111,7 @@
       shown = false;
     }
     if (!shown) renderLocalClock(now);
+    if (typeof showTodayJoke === "function") showTodayJoke();
   }
 
   function chicagoDateISO(now) {
@@ -557,32 +559,12 @@
       calendarNoteEl.textContent = "";
       syncCalendarTarget();
       if (monthOpen) closeMonthView();
+      if (typeof applyLayout === "function") applyLayout();
       return;
     }
     var focused = calendarEl.className.indexOf("is-focused") >= 0;
     calendarEl.className = focused ? "panel panel-calendar is-on is-focused" : "panel panel-calendar is-on";
-    clearNode(calendarListEl);
-    var events = snapshot.events || [];
-    if (!events.length) {
-      var empty = snapshot.loading ? "Loading calendar" : (snapshot.stale ? "" : "Nothing coming up");
-      if (empty) calendarListEl.appendChild(el("p", "calendar-empty", empty));
-    } else {
-      var lastHeading = "";
-      var i;
-      for (i = 0; i < events.length; i++) {
-        var ev = events[i];
-        if (!ev) continue;
-        var heading = ev.heading || "";
-        if (heading !== lastHeading) {
-          calendarListEl.appendChild(el("p", "calendar-day", heading));
-          lastHeading = heading;
-        }
-        var row = el("div", "calendar-row");
-        row.appendChild(el("p", "calendar-time", ev.time || (ev.allDay ? "All day" : "")));
-        row.appendChild(el("p", "calendar-title", ev.title || "Busy"));
-        calendarListEl.appendChild(row);
-      }
-    }
+    fillCalendarList(snapshot);
     if (snapshot.stale) {
       calendarNoteEl.textContent = "Calendar not updated";
       calendarNoteEl.className = "calendar-note is-on";
@@ -590,11 +572,37 @@
       calendarNoteEl.textContent = "";
       calendarNoteEl.className = "calendar-note";
     }
-    fitCalendar();
     syncCalendarTarget();
     if (monthOpen) {
       if (!snapshot.configured) closeMonthView();
       else renderMonth();
+    }
+    if (typeof applyLayout === "function") applyLayout();
+  }
+
+  function fillCalendarList(snapshot) {
+    if (!calendarListEl || !snapshot) return;
+    clearNode(calendarListEl);
+    var events = snapshot.events || [];
+    if (!events.length) {
+      var empty = snapshot.loading ? "Loading calendar" : (snapshot.stale ? "" : "Nothing coming up");
+      if (empty) calendarListEl.appendChild(el("p", "calendar-empty", empty));
+      return;
+    }
+    var lastHeading = "";
+    var i;
+    for (i = 0; i < events.length; i++) {
+      var ev = events[i];
+      if (!ev) continue;
+      var heading = ev.heading || "";
+      if (heading !== lastHeading) {
+        calendarListEl.appendChild(el("p", "calendar-day", heading));
+        lastHeading = heading;
+      }
+      var row = el("div", "calendar-row");
+      row.appendChild(el("p", "calendar-time", ev.time || (ev.allDay ? "All day" : "")));
+      row.appendChild(el("p", "calendar-title", ev.title || "Busy"));
+      calendarListEl.appendChild(row);
     }
   }
 
@@ -998,10 +1006,7 @@
 
   function setPhotoPanel(on) {
     if (!photoPanel) return;
-    var messagesOn = dashEl && dashEl.className.indexOf("has-messages") >= 0;
-    var wantDash = on ? "dashboard has-photo" : "dashboard";
-    if (messagesOn) wantDash += " has-messages";
-    var layoutChanged = !dashEl || dashEl.className !== wantDash;
+    photoEnabled = !!on;
     var focused = photoPanel.className.indexOf("is-focused") >= 0;
     var cls = on ? "panel panel-photo is-on" : "panel panel-photo";
     if (on && focused) cls += " is-focused";
@@ -1010,11 +1015,7 @@
     else photoPanel.removeAttribute("tabindex");
     photoPanel.setAttribute("aria-hidden", on ? "false" : "true");
     if (!on) closePhotoSettings();
-    if (dashEl) dashEl.className = wantDash;
-    if (layoutChanged) {
-      if (lastCalendarSnapshot) renderCalendar(lastCalendarSnapshot);
-      else fitCalendar();
-    }
+    applyLayout();
   }
 
   function stopPhotos() {
@@ -1187,16 +1188,19 @@
       if (Date.now() - at >= MESSAGE_TTL) continue;
       visible.push({ sender: sender || "Family", text: text, at: at });
     }
-    if (dashEl) {
-      var photoOn = dashEl.className.indexOf("has-photo") >= 0;
-      dashEl.className = photoOn ? "dashboard has-photo" : "dashboard";
-      if (visible.length) dashEl.className += " has-messages";
-    }
-    if (!visible.length) {
+    notesVisible = visible.length > 0;
+    if (!visible.length && !layoutEditing) {
       messagesEl.className = "panel panel-messages";
       messagesEl.setAttribute("aria-hidden", "true");
       clearNode(messageListEl);
-      fitCalendar();
+      applyLayout();
+      return;
+    }
+    if (!visible.length) {
+      messagesEl.className = "panel panel-messages is-on is-placeholder";
+      messagesEl.setAttribute("aria-hidden", "false");
+      clearNode(messageListEl);
+      applyLayout();
       return;
     }
     messagesEl.className = "panel panel-messages is-on";
@@ -1213,7 +1217,7 @@
       block.appendChild(document.createTextNode(" " + note.text));
       messageListEl.appendChild(block);
     }
-    fitCalendar();
+    applyLayout();
   }
 
   function refreshMessages() {
@@ -1232,6 +1236,476 @@
     renderMessages(payload);
   };
 
+  var GRID_COLS = 12;
+  var GRID_ROWS = 8;
+  var GRID_PAD = 20;
+  var GRID_GAP = 16;
+  var CELL_W = 142;
+  var CELL_H = 116;
+  var clockPanel = document.getElementById("clock-panel");
+  var layoutHint = document.getElementById("layout-hint");
+  var layoutBar = document.getElementById("layout-bar");
+  var layoutModeEl = document.getElementById("layout-mode");
+  var layoutHelpEl = document.getElementById("layout-help");
+  var layoutActions = {
+    save: document.getElementById("layout-save"),
+    cancel: document.getElementById("layout-cancel"),
+    reset: document.getElementById("layout-reset")
+  };
+  var photoEnabled = false;
+  var notesVisible = false;
+  var layoutEditing = false;
+  var layoutState = null;
+  var boxEls = {
+    photo: photoPanel,
+    notes: messagesEl,
+    clock: clockPanel,
+    weather: document.getElementById("weather"),
+    joke: document.getElementById("joke"),
+    calendar: calendarEl
+  };
+
+  function defaultBoxes() {
+    return {
+      photo: { col: 0, row: 0, cols: 8, rows: 7 },
+      notes: { col: 0, row: 7, cols: 8, rows: 1 },
+      clock: { col: 8, row: 0, cols: 4, rows: 2 },
+      weather: { col: 8, row: 2, cols: 4, rows: 3 },
+      joke: { col: 8, row: 5, cols: 4, rows: 1 },
+      calendar: { col: 8, row: 6, cols: 4, rows: 2 }
+    };
+  }
+
+  function cellRect(cell) {
+    return {
+      x: GRID_PAD + cell.col * (CELL_W + GRID_GAP),
+      y: GRID_PAD + cell.row * (CELL_H + GRID_GAP),
+      w: cell.cols * CELL_W + (cell.cols - 1) * GRID_GAP,
+      h: cell.rows * CELL_H + (cell.rows - 1) * GRID_GAP
+    };
+  }
+
+  function sameCell(a, b) {
+    return a && b && a.col === b.col && a.row === b.row && a.cols === b.cols && a.rows === b.rows;
+  }
+
+  function isDefaultBoxes(boxes) {
+    var d = defaultBoxes();
+    return sameCell(boxes.photo, d.photo) && sameCell(boxes.notes, d.notes) &&
+      sameCell(boxes.clock, d.clock) && sameCell(boxes.weather, d.weather) &&
+      sameCell(boxes.joke, d.joke) && sameCell(boxes.calendar, d.calendar);
+  }
+
+  function shownBoxes(boxes) {
+    var photo = boxes.photo;
+    var notes = boxes.notes;
+    if (!layoutEditing && !photoEnabled && isDefaultBoxes(boxes)) {
+      if (notesVisible) {
+        return {
+          photo: photo,
+          notes: { col: 0, row: 7, cols: 12, rows: 1 },
+          clock: { col: 0, row: 0, cols: 12, rows: 3 },
+          weather: { col: 0, row: 3, cols: 6, rows: 3 },
+          calendar: { col: 6, row: 3, cols: 6, rows: 3 },
+          joke: { col: 0, row: 6, cols: 12, rows: 1 }
+        };
+      }
+      return {
+        photo: photo,
+        notes: notes,
+        clock: { col: 0, row: 0, cols: 12, rows: 3 },
+        weather: { col: 0, row: 3, cols: 6, rows: 3 },
+        calendar: { col: 6, row: 3, cols: 6, rows: 3 },
+        joke: { col: 0, row: 6, cols: 12, rows: 2 }
+      };
+    }
+    if (layoutEditing || notesVisible || !photo || !notes) return boxes;
+    if (notes.col === photo.col && notes.cols === photo.cols && notes.row === photo.row + photo.rows) {
+      var copy = {
+        photo: { col: photo.col, row: photo.row, cols: photo.cols, rows: photo.rows + notes.rows },
+        notes: notes,
+        clock: boxes.clock,
+        weather: boxes.weather,
+        joke: boxes.joke,
+        calendar: boxes.calendar
+      };
+      return copy;
+    }
+    return boxes;
+  }
+
+  function placeBox(el, rect) {
+    if (!el || !rect) return;
+    el.style.left = rect.x + "px";
+    el.style.top = rect.y + "px";
+    el.style.width = rect.w + "px";
+    el.style.height = rect.h + "px";
+  }
+
+  function setFlag(el, flag, on) {
+    if (!el) return;
+    var parts = String(el.className || "").split(/\s+/);
+    var next = [];
+    var i;
+    for (i = 0; i < parts.length; i++) {
+      if (parts[i] && parts[i] !== flag) next.push(parts[i]);
+    }
+    if (on) next.push(flag);
+    el.className = next.join(" ");
+  }
+
+  function fitClock() {
+    if (!clockPanel || !clockEl) return;
+    var w = clockPanel.clientWidth - 36;
+    var h = clockPanel.clientHeight - 18;
+    if (w < 40 || h < 40) return;
+    var clockPx = Math.round(Math.max(28, Math.min(w * 0.42, h * 0.5)));
+    var datePx = Math.round(Math.max(14, Math.min(w * 0.075, h * 0.16, clockPx * 0.34)));
+    clockEl.style.fontSize = clockPx + "px";
+    if (ampmEl) {
+      ampmEl.style.fontSize = Math.round(clockPx * 0.34) + "px";
+      ampmEl.style.marginTop = Math.round(clockPx * 0.12) + "px";
+      ampmEl.style.marginLeft = Math.round(clockPx * 0.08) + "px";
+    }
+    if (dateEl) {
+      dateEl.style.fontSize = datePx + "px";
+      dateEl.style.marginTop = "2px";
+    }
+    var zoneEl = document.getElementById("zone");
+    if (zoneEl) {
+      zoneEl.style.fontSize = Math.max(12, Math.round(datePx * 0.72)) + "px";
+      zoneEl.style.marginTop = "2px";
+    }
+  }
+
+  function fitWeather() {
+    var panel = boxEls.weather;
+    if (!panel || !bodyEl || !statusEl) return;
+    var w = panel.clientWidth - 24;
+    var h = panel.clientHeight - 24;
+    if (w < 40 || h < 40) return;
+    setFlag(panel, "is-compact", false);
+    setFlag(panel, "is-stack", false);
+    var refW = 980;
+    var refH = 420;
+    if (h < 170) {
+      setFlag(panel, "is-compact", true);
+      refW = 900;
+      refH = 130;
+    } else if (w < h * 1.7) {
+      setFlag(panel, "is-stack", true);
+      refW = 522;
+      refH = 340;
+    }
+    var scale = Math.min(w / refW, h / refH);
+    if (!(scale > 0)) scale = 1;
+    scale = scale * 0.98;
+    var transform = "scale(" + scale + ")";
+    bodyEl.style.width = refW + "px";
+    bodyEl.style.height = refH + "px";
+    bodyEl.style.webkitTransform = transform;
+    bodyEl.style.transform = transform;
+    statusEl.style.width = refW + "px";
+    statusEl.style.height = refH + "px";
+    statusEl.style.webkitTransform = transform;
+    statusEl.style.transform = transform;
+  }
+
+  function fitCalendarSize() {
+    if (!calendarEl) return;
+    var w = calendarEl.clientWidth;
+    var h = calendarEl.clientHeight;
+    if (w < 40 || h < 40) return;
+    var px = Math.round(Math.max(16, Math.min(40, w * 0.05, h * 0.075)));
+    calendarEl.style.setProperty("--cal-px", String(px));
+    calendarEl.style.setProperty("--cal-line", String(Math.round(px * 1.35)));
+    if (lastCalendarSnapshot && lastCalendarSnapshot.configured && calendarEl.className.indexOf("is-on") >= 0) {
+      fillCalendarList(lastCalendarSnapshot);
+    }
+    fitCalendar();
+  }
+
+  function fitNotes() {
+    if (!messagesEl) return;
+    var w = messagesEl.clientWidth - 32;
+    var h = messagesEl.clientHeight - 16;
+    var count = messageListEl ? messageListEl.children.length : 0;
+    if (count < 1) count = 1;
+    var line = Math.floor(h / count);
+    var maxLine = Math.round(Math.min(64, Math.max(34, w * 0.045)));
+    if (line < 22) line = 22;
+    if (line > maxLine) line = maxLine;
+    messagesEl.style.setProperty("--note-line", String(line));
+    messagesEl.style.setProperty("--note-px", String(Math.max(16, Math.round(line * 0.78))));
+  }
+
+  function applyLayout() {
+    if (dashEl && dashEl.className.indexOf("is-grid") < 0) {
+      dashEl.className = (dashEl.className ? dashEl.className + " " : "") + "is-grid";
+    }
+    var boxes = shownBoxes((layoutState && layoutState.boxes) || defaultBoxes());
+    var id;
+    for (id in boxEls) {
+      if (!boxEls[id] || !boxes[id]) continue;
+      placeBox(boxEls[id], cellRect(boxes[id]));
+    }
+    var showPhoto = photoEnabled || layoutEditing;
+    if (photoPanel) photoPanel.style.display = showPhoto ? "block" : "none";
+    setFlag(photoPanel, "is-placeholder", layoutEditing && !photoEnabled);
+    var showNotes = notesVisible || layoutEditing;
+    if (messagesEl) messagesEl.style.display = showNotes ? "flex" : "none";
+    var calendarOn = calendarEl && calendarEl.className.indexOf("is-on") >= 0;
+    if (calendarEl) calendarEl.style.display = (calendarOn || layoutEditing) ? "flex" : "none";
+    setFlag(calendarEl, "is-placeholder", layoutEditing && !calendarOn);
+    if (clockPanel) clockPanel.style.display = "block";
+    if (boxEls.weather) boxEls.weather.style.display = "flex";
+    if (boxEls.joke) boxEls.joke.style.display = "flex";
+    var selected = layoutState && layoutState.selected;
+    var grabbed = !!(layoutState && layoutState.grabbed);
+    var resize = grabbed && layoutState.mode === "resize";
+    for (id in boxEls) {
+      setFlag(boxEls[id], "is-selected", layoutEditing && selected === id);
+      setFlag(boxEls[id], "is-grabbed", layoutEditing && grabbed && selected === id);
+      setFlag(boxEls[id], "is-resize", layoutEditing && resize && selected === id);
+    }
+    fitClock();
+    fitWeather();
+    fitCalendarSize();
+    fitNotes();
+    fitJoke();
+    renderEditor();
+  }
+
+  var jokeSetupEl = document.getElementById("joke-setup");
+  var jokePunchEl = document.getElementById("joke-punch");
+  var jokeKey = "";
+  var jokeRevealed = false;
+  var jokeRevealTimer = null;
+
+  function jokeDateParts(now) {
+    var iso = chicagoDateISO(now);
+    var bits = String(iso || "").split("-");
+    var y = parseInt(bits[0], 10);
+    var m = parseInt(bits[1], 10);
+    var d = parseInt(bits[2], 10);
+    if (!y || !m || !d) {
+      y = now.getFullYear();
+      m = now.getMonth() + 1;
+      d = now.getDate();
+    }
+    return { y: y, m: m, d: d, key: y + "-" + m + "-" + d };
+  }
+
+  function showTodayJoke() {
+    var now = new Date();
+    var list = (typeof FAMILY_JOKES !== "undefined" && FAMILY_JOKES && FAMILY_JOKES.length)
+      ? FAMILY_JOKES
+      : [["Why did the joke cross the screen?", "To get to the other side."]];
+    var parts = jokeDateParts(now);
+    var idx = (typeof jokeIndexForLocalDate === "function")
+      ? jokeIndexForLocalDate(parts.y, parts.m, parts.d, list.length)
+      : 0;
+    var key = parts.key + ":" + idx;
+    if (key === jokeKey) return;
+    jokeKey = key;
+    if (jokeRevealTimer) {
+      window.clearTimeout(jokeRevealTimer);
+      jokeRevealTimer = null;
+    }
+    jokeRevealed = false;
+    var joke = list[idx] || list[0];
+    if (jokeSetupEl) jokeSetupEl.textContent = joke[0] || "";
+    if (jokePunchEl) jokePunchEl.textContent = joke[1] || "";
+    if (typeof applyLayout === "function") applyLayout();
+  }
+
+  function fitJoke() {
+    var panel = boxEls.joke;
+    if (!panel || !jokeSetupEl || !jokePunchEl) return;
+    var w = panel.clientWidth - 28;
+    var h = panel.clientHeight - 12;
+    if (w < 40 || h < 28) return;
+    var tiny = h < 150;
+    setFlag(panel, "is-tiny", tiny);
+    var line = Math.floor(h / (tiny ? 2 : 3));
+    var maxLine = tiny ? 30 : Math.round(Math.min(64, Math.max(28, w * 0.06)));
+    if (line < 18) line = 18;
+    if (line > maxLine) line = maxLine;
+    var px = Math.max(16, Math.round(line * 0.86));
+    panel.style.setProperty("--joke-px", String(px));
+    panel.style.setProperty("--joke-line", String(Math.round(px * 1.25)));
+    var guard = 0;
+    while (tiny && guard < 12 && px > 15) {
+      if (jokeSetupEl.scrollWidth <= jokeSetupEl.clientWidth + 1 &&
+          jokePunchEl.scrollWidth <= jokePunchEl.clientWidth + 1) break;
+      px -= 1;
+      panel.style.setProperty("--joke-px", String(px));
+      panel.style.setProperty("--joke-line", String(Math.round(px * 1.25)));
+      guard++;
+    }
+    if (tiny) {
+      if (jokeRevealTimer) {
+        window.clearTimeout(jokeRevealTimer);
+        jokeRevealTimer = null;
+      }
+      jokeRevealed = true;
+      setFlag(panel, "is-revealed", true);
+      return;
+    }
+    setFlag(panel, "is-revealed", jokeRevealed);
+    if (!jokeRevealed && !jokeRevealTimer) {
+      jokeRevealTimer = window.setTimeout(function () {
+        jokeRevealTimer = null;
+        jokeRevealed = true;
+        setFlag(panel, "is-revealed", true);
+      }, 4000);
+    }
+  }
+
+  function editorWords() {
+    var names = {
+      photo: "Photo",
+      notes: "Notes",
+      clock: "Clock",
+      weather: "Weather",
+      joke: "Joke",
+      calendar: "Upcoming",
+      save: "Save",
+      cancel: "Cancel",
+      reset: "Reset to default"
+    };
+    var selected = (layoutState && layoutState.selected) || "";
+    var name = names[selected] || "Box";
+    if (!layoutState || !layoutState.editing) {
+      return { mode: "", help: "" };
+    }
+    if (layoutState.grabbed && layoutState.mode === "resize") {
+      return {
+        mode: name + " · Resize",
+        help: "Left and right change the width. Up and down change the height. OK switches to Move. Back puts the box down."
+      };
+    }
+    if (layoutState.grabbed) {
+      return {
+        mode: name + " · Move",
+        help: "Arrows slide it one square. It stops at the edge and will not cover another box. OK switches to Resize. Back puts it down."
+      };
+    }
+    if (selected === "save") {
+      return { mode: "Save", help: "OK keeps this arrangement on the TV." };
+    }
+    if (selected === "cancel") {
+      return { mode: "Cancel", help: "OK throws away these changes." };
+    }
+    if (selected === "reset") {
+      return { mode: "Reset to default", help: "OK puts the boxes back to the original layout. Save keeps it." };
+    }
+    return {
+      mode: "Arrange · " + name,
+      help: "Arrows choose a box. OK picks it up. Down from the bottom box reaches Save, Cancel, and Reset. Back leaves without saving."
+    };
+  }
+
+  var layoutBarAnchor = null;
+
+  function rectsOverlap(a, b) {
+    return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+  }
+
+  function placeEditorBar() {
+    if (!layoutBar) return;
+    if (!layoutEditing) {
+      layoutBar.style.left = "";
+      layoutBar.style.top = "";
+      layoutBar.style.width = "";
+      layoutBar.style.bottom = "";
+      layoutBar.style.marginLeft = "";
+      return;
+    }
+    var barW = 560;
+    var margin = 24;
+    var anchor = layoutBarAnchor ? cellRect(layoutBarAnchor) : null;
+    var left = margin;
+    var rightSlot = 1920 - barW - margin;
+    if (anchor) {
+      var center = anchor.x + anchor.w / 2;
+      var rightClear = anchor.x + anchor.w <= rightSlot;
+      var leftClear = anchor.x >= barW + margin * 2;
+      if (rightClear && (!leftClear || center < 960)) left = rightSlot;
+      else if (leftClear) left = margin;
+      else left = Math.max(margin, Math.round((1920 - barW) / 2));
+    }
+    layoutBar.style.width = barW + "px";
+    layoutBar.style.marginLeft = "0";
+    layoutBar.style.bottom = "auto";
+    layoutBar.style.left = left + "px";
+    layoutBar.style.top = "80px";
+    var barH = layoutBar.offsetHeight || 190;
+    var top = Math.round((1080 - barH) / 2);
+    if (anchor) {
+      var bar = { x: left, y: top, w: barW, h: barH };
+      if (rectsOverlap(bar, anchor)) {
+        if (anchor.y >= barH + margin + 16) top = anchor.y - barH - margin;
+        else if (anchor.y + anchor.h + barH + margin <= 1064) top = anchor.y + anchor.h + margin;
+      }
+    }
+    if (top < 16) top = 16;
+    if (top + barH > 1064) top = Math.max(16, 1064 - barH);
+    layoutBar.style.top = top + "px";
+  }
+
+  function renderEditor() {
+    layoutEditing = !!(layoutState && layoutState.editing);
+    if (dashEl) setFlag(dashEl, "is-editing", layoutEditing);
+    if (!layoutBar) return;
+    layoutBar.setAttribute("aria-hidden", layoutEditing ? "false" : "true");
+    var words = editorWords();
+    if (layoutModeEl) layoutModeEl.textContent = words.mode;
+    if (layoutHelpEl) layoutHelpEl.textContent = words.help;
+    var selected = layoutState && layoutState.selected;
+    var key;
+    for (key in layoutActions) {
+      setFlag(layoutActions[key], "is-selected", layoutEditing && selected === key);
+    }
+    if (layoutEditing && layoutState && layoutState.boxes && layoutState.boxes[selected]) {
+      layoutBarAnchor = layoutState.boxes[selected];
+    }
+    layoutBar.className = "layout-bar";
+    placeEditorBar();
+  }
+
+  window.onLayoutState = function (state) {
+    layoutState = state || { boxes: defaultBoxes(), editing: false };
+    if (layoutEditing && !(state && state.editing)) {
+      setCalendarFocused(false);
+      setPhotoFocused(false);
+    }
+    layoutEditing = !!(state && state.editing);
+    if (layoutEditing) {
+      setCalendarFocused(false);
+      setPhotoFocused(false);
+      closePhotoSettings();
+      if (monthOpen) closeMonthView();
+    }
+    applyLayout();
+  };
+
+  function pullLayout() {
+    if (!window.FamilyLayout || typeof window.FamilyLayout.getLayout !== "function") {
+      applyLayout();
+      return;
+    }
+    try {
+      window.onLayoutState(JSON.parse(window.FamilyLayout.getLayout()));
+    } catch (e) {
+      applyLayout();
+    }
+  }
+
+  window.showArrangeHint = function () {
+    if (dashEl) setFlag(dashEl, "is-tv", true);
+  };
+
   function start() {
     fitStage();
     updateClock();
@@ -1241,13 +1715,19 @@
     window.onresize = fitStage;
     window.addEventListener("orientationchange", fitStage);
     document.addEventListener("visibilitychange", function () {
-      if (!document.hidden) fetchWeather();
+      if (!document.hidden) {
+        fetchWeather();
+        showTodayJoke();
+      }
     });
     window.addEventListener("online", fetchWeather);
     fetchWeather();
     pullCalendar();
     pullPhotos();
     pullMessages();
+    pullLayout();
+    showTodayJoke();
+    if (window.__tvKeys) window.showArrangeHint();
     window.setInterval(refreshMessages, 30000);
   }
 

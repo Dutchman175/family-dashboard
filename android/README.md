@@ -45,7 +45,7 @@ In the iCloud calendar app, share the Home calendar and copy the public link. It
 adb shell am start -n com.dutchman175.familydashboard/.MainActivity --es calendar_url 'webcal://PASTE-THE-LINK-HERE'
 ```
 
-`webcal://` is stored as `https://`. The app fetches it about every 15 minutes, including when the screensaver starts, and shows the next 8 events in the coming week. Times are Central Time. Until a link is set, the Upcoming panel stays hidden and the clock and weather use the full width.
+`webcal://` is stored as `https://`. The app fetches it about every 15 minutes, including when the screensaver starts, and shows the next 8 events in the coming week. Times are Central Time. Until a link is set, the Upcoming panel stays hidden. While you are arranging the boxes, that spot still shows so you can move it.
 
 To clear the link:
 
@@ -73,7 +73,7 @@ adb shell am start -n com.dutchman175.familydashboard/.MainActivity --es photo_a
 adb shell "am start -n com.dutchman175.familydashboard/.MainActivity --es photo_album_url 'https://www.icloud.com/sharedalbum/#PASTE-THE-TOKEN'"
 ```
 
-The app stores the album token in its private storage and downloads the largest JPEG derivative under about 4 MB (not a thumbnail). Photos already on the device are not downloaded again. The album is fetched when the app process starts and then about every 45 minutes. The slideshow waits 18 seconds between photos until that is changed on the remote: focus the photo and press OK, then left and right change the seconds. The screensaver uses the same timing. Logcat tag `FamilyDashPhotos` records each step and never includes the album link. With an album, the photo fills a large panel on the left and the clock, weather, and Upcoming stack in a narrower column on the right. Until a link is set, or if no photo loads, the dashboard looks the same as before: dark background, large clock, Lowell weather, and Upcoming side by side.
+The app stores the album token in its private storage and downloads the largest JPEG derivative under about 4 MB (not a thumbnail). Photos already on the device are not downloaded again. The album is fetched when the app process starts and then about every 45 minutes. The slideshow waits 18 seconds between photos until that is changed on the remote: focus the photo and press OK, then left and right change the seconds. Holding OK opens Arrange instead. The screensaver uses the same timing. Logcat tag `FamilyDashPhotos` records each step and never includes the album link. With an album, the photo fills the left side and the clock, weather, and Upcoming stack on the right, unless you have arranged the boxes. Until a link is set, or if no photo loads, and you have not arranged the boxes, the screen looks like the earlier dashboard: a large clock, with weather and Upcoming side by side. After you arrange the boxes, a hidden photo leaves an empty space where that box sits.
 
 To clear the album:
 
@@ -89,7 +89,7 @@ adb shell am start -n com.dutchman175.familydashboard/.MainActivity --es photo_a
 
 ## Message board
 
-Messages show in a short box under the photo, the full width of that column. Each message is one line, such as `Cassie, 5 min ago: Soccer moved to 6.` Longer text is cut off with an ellipsis. The box stays hidden when there are no messages, and the photo fills the left side again. The right side stays the clock, weather, and Upcoming. Messages disappear after 24 hours. A new one briefly outlines the box in gold.
+Messages show in a notes strip. On a new install that strip sits under the photo, the full width of that column. Each message is one line, such as `Cassie, 5 min ago: Soccer moved to 6.` Longer text is cut off with an ellipsis. The strip stays hidden when there are no messages. If it is still the row directly under the photo, the photo grows into that space. If you have moved the strip somewhere else, that space stays empty. Messages disappear after 24 hours. A new one briefly outlines the box in gold. The boxes can be moved; see Arrange the boxes.
 
 The TV listens to one topic on the free public service ntfy.sh. There is no account. The topic name is long and random, and it works like a password: anyone who knows it can post. Treat it like the calendar link and the album link. Do not put the real name in git, in a screenshot, in a chat, or in a log. The examples below use `PASTE-THE-TOPIC-NAME`. Replace that with a name you make up, 16 to 64 characters, using only letters, numbers, underscores, and hyphens.
 
@@ -136,6 +136,24 @@ Andy and Cassie each build this once. The only difference is the Title, which is
 The text can be about 200 characters. The TV keeps it as plain text. Sending the single word `clear` removes every message currently on the TV.
 
 The free ntfy app from the App Store is another way to post. Install ntfy, choose the publish action, set the topic to the same secret name, set the title to `Andy` or `Cassie`, and type the message. You do not have to subscribe to the topic to publish.
+
+## Arrange the boxes
+
+The dashboard is a 12 by 8 grid. The starting arrangement keeps the v1.4.0 photo at the same size, with the notes strip under it. On the right are the clock, the weather, a Joke of the Day strip, and Upcoming. Upcoming is one row shorter than in v1.4.0 so the joke fits. The photo is not smaller. Hold OK on the remote for about half a second to arrange. A line at the bottom of the screen says `Hold OK to arrange`. The screensaver uses the saved arrangement and cannot open the editor.
+
+While arranging, the arrow buttons move a gold outline from box to box. Down from the lowest box reaches Save, Cancel, and Reset to default. Left and right switch those three. Up goes back to the boxes. OK on a box picks it up in Move. The arrows then slide it by one square. OK again switches to Resize. In Resize, left and right change the width and up and down change the height. A box will not leave the screen and will not cover another box. The gold line at the top of the editor says which box you are on and whether you are in Move or Resize.
+
+Back puts the box down. If you are not holding a box, Back leaves and throws away unsaved changes, the same as Cancel. OK on Save keeps the arrangement on the TV and on the screensaver. OK on Cancel throws the changes away. OK on Reset puts the preview back to the original layout. You still press Save to keep that.
+
+The arrangement is stored on the device with the calendar link, the album link, the message topic, and the seconds-per-photo setting. Installing an update does not clear those.
+
+A short press of OK is unchanged. On the photo, it opens seconds per photo. On Upcoming, it opens the month view. The joke box has no extra button. Hold OK to move it like the others.
+
+## Joke of the Day
+
+The joke box uses a list of kid-friendly jokes stored in the app. There is no joke website, so it works with the internet off and stays the same clean set. A new joke starts at midnight Central Time, the same clock the dashboard already shows. The dashboard and the screensaver pick the joke from that date, so they always match.
+
+In the short strip under the weather, the question and the answer both show, with the answer in gold. If you make the box taller, the question shows first and the answer fades in after about four seconds. The words get bigger when the box gets bigger.
 
 ## Screensaver on a TiVo Stream 4K
 
