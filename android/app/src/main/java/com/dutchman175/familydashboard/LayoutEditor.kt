@@ -77,6 +77,9 @@ class LayoutEditor(initial: DashboardGrid.Layout) {
             mode = "move"
             return "reset"
         }
+        if (selected == "settings") {
+            return "settings"
+        }
         if (!DashboardGrid.IDS.contains(selected)) {
             return "none"
         }
@@ -155,13 +158,13 @@ class LayoutEditor(initial: DashboardGrid.Layout) {
     }
 
     private fun cycleAction(dCol: Int): String {
-        val order = arrayOf("save", "cancel", "reset")
+        val order = arrayOf("save", "cancel", "reset", "settings")
         val at = order.indexOf(selected).let { if (it < 0) 0 else it }
         val step = if (dCol < 0) -1 else 1
         return order[(at + step + order.size) % order.size]
     }
 
     private fun isAction(id: String): Boolean {
-        return id == "save" || id == "cancel" || id == "reset"
+        return id == "save" || id == "cancel" || id == "reset" || id == "settings"
     }
 }

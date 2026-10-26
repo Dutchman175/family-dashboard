@@ -120,6 +120,7 @@ public class MainActivity extends Activity {
         app.getCalendar().applyIntent(intent);
         app.getPhotos().applyIntent(intent);
         app.getMessages().applyIntent(intent);
+        app.getIdle().applyIntent(intent);
     }
 
     private static final String PHOTO_LOG = "FamilyDashPhotos";

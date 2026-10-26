@@ -65,6 +65,7 @@ final class DashboardController {
     private boolean loadFailed;
     private boolean monthOpen;
     private boolean settingsOpen;
+    private final IdleSettingsPanel idlePanel;
     private String focusTarget = "";
     private final Runnable idleClose;
 
@@ -73,6 +74,7 @@ final class DashboardController {
         this.webView = root.findViewById(R.id.web);
         this.errorView = root.findViewById(R.id.error);
         this.retryButton = root.findViewById(R.id.retry);
+        this.idlePanel = new IdleSettingsPanel(root);
         this.handler = new Handler(Looper.getMainLooper());
         this.idleClose = new Runnable() {
             @Override
@@ -378,6 +380,7 @@ final class DashboardController {
         return editor.isOpen()
                 || settingsOpen
                 || monthOpen
+                || idlePanel.isOpen()
                 || errorView.getVisibility() == View.VISIBLE;
     }
 
@@ -388,6 +391,10 @@ final class DashboardController {
     boolean handleKey(KeyEvent event) {
         if (!interactive || event == null || destroyed) {
             return false;
+        }
+        if (idlePanel.isOpen()) {
+            idlePanel.handleKey(event);
+            return true;
         }
         if (errorView.getVisibility() == View.VISIBLE) {
             return false;
@@ -515,6 +522,10 @@ final class DashboardController {
         if (!interactive) {
             return false;
         }
+        if (idlePanel.isOpen()) {
+            idlePanel.hide();
+            return true;
+        }
         if (editorBackFromKey) {
             editorBackFromKey = false;
             return true;
@@ -589,6 +600,8 @@ final class DashboardController {
                 layouts.save(editor.commit());
             } else if ("cancel".equals(result)) {
                 editor.cancel();
+            } else if ("settings".equals(result)) {
+                idlePanel.show();
             }
         } else {
             return false;

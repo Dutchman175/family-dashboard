@@ -18,6 +18,9 @@ class DashboardApp : Application() {
     lateinit var updates: UpdateRepository
         private set
 
+    lateinit var idle: IdleSettings
+        private set
+
     override fun onCreate() {
         super.onCreate()
         calendar = CalendarRepository(this)
@@ -37,5 +40,7 @@ class DashboardApp : Application() {
         messages.start()
         updates = UpdateRepository(this)
         updates.start()
+        idle = IdleSettings(this)
+        IdleReturnService.sync(this)
     }
 }

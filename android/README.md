@@ -173,7 +173,7 @@ The free ntfy app from the App Store is another way to post. Install ntfy, choos
 
 ## Arrange the boxes
 
-The dashboard is a 12 by 8 grid. The starting arrangement keeps the v1.4.0 photo at the same size, with the notes strip under it. On the right are the clock, the weather, bedtime, a Joke of the Day strip, and Upcoming. The photo is not smaller. Hold the center button (Select on a Fire TV remote, OK on a TiVo remote) for about half a second to arrange. The three-line Menu button on a Fire TV remote opens Arrange immediately. A line at the bottom of the screen says `Hold Select or press Menu to arrange`. The screensaver uses the saved arrangement and cannot open the editor.
+The dashboard is a 12 by 8 grid. The starting arrangement keeps the v1.4.0 photo at the same size, with the notes strip under it. On the right are the clock, the weather, bedtime, a Joke of the Day strip, and Upcoming. The photo is not smaller. Hold the center button (Select on a Fire TV remote, OK on a TiVo remote) for about half a second to arrange. The three-line Menu button on a Fire TV remote opens Arrange immediately. A line at the bottom of the screen says `Hold Select or press Menu to arrange`. Settings, on the same row as Save, turns on idle return and open-after-startup. The screensaver uses the saved arrangement and cannot open the editor.
 
 While arranging, the arrow buttons move a gold outline from box to box. Down from the lowest box reaches Save, Cancel, and Reset to default. Left and right switch those three. Up goes back to the boxes. OK on a box picks it up in Move. The arrows then slide it by one square. OK again switches to Resize. In Resize, left and right change the width and up and down change the height. A box will not leave the screen and will not cover another box. The gold line at the top of the editor says which box you are on and whether you are in Move or Resize.
 
@@ -270,6 +270,43 @@ adb reboot
 ```
 
 If the screensaver never stays set, open the Family Dashboard app and leave it up. The screen stays on while the app is in front. Back or Home leaves it.
+
+## Open when the Fire Stick is idle
+
+This is off until you turn it on. The screensaver above is still the first choice. This is the fallback for a Fire Stick that will not run a third-party dream.
+
+It will not open over a video or over another app. It waits until the home screen has been the front app, with nothing playing, for the number of minutes you set. Music still playing counts as playing, so it waits. The check runs about every 30 seconds and does not keep the stick awake.
+
+Turn it on from the TV: hold Select, move down to the gold buttons, move right to Settings, and press Select. Left and right change the gold line. The lines are "Open the dashboard", "After minutes on the home screen", and "Open when the stick starts". Back closes the screen.
+
+Or turn it on from a computer. This also opens the app, which is required once so a later reboot is allowed to start it:
+
+```
+adb connect FIRE_TV_IP
+adb shell appops set com.dutchman175.familydashboard SYSTEM_ALERT_WINDOW allow
+adb shell appops set com.dutchman175.familydashboard GET_USAGE_STATS allow
+adb shell am start -n com.dutchman175.familydashboard/.MainActivity --ez idle_return true --ei idle_minutes 5
+```
+
+`idle_minutes` is how long the home screen sits idle. Use 1 to 120. Leave it off with:
+
+```
+adb shell am start -n com.dutchman175.familydashboard/.MainActivity --ez idle_return false
+```
+
+Open the dashboard about 20 seconds after the stick boots. It still skips the open if something is already playing:
+
+```
+adb shell am start -n com.dutchman175.familydashboard/.MainActivity --ez open_on_boot true
+```
+
+Turn that off with `--ez open_on_boot false`. One command can set all three:
+
+```
+adb shell am start -n com.dutchman175.familydashboard/.MainActivity --ez idle_return true --ei idle_minutes 5 --ez open_on_boot true
+```
+
+`SYSTEM_ALERT_WINDOW` lets the app come forward while another screen is showing. On Fire OS 8 that is what makes a background open legal. `GET_USAGE_STATS` lets it see that the home screen, not another app, is in front. The settings screen says Ready when both are allowed. A force-stop of the app turns the automatic start off until you open the app again.
 
 ## Build
 

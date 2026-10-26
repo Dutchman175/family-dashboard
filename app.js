@@ -1309,7 +1309,8 @@
   var layoutActions = {
     save: document.getElementById("layout-save"),
     cancel: document.getElementById("layout-cancel"),
-    reset: document.getElementById("layout-reset")
+    reset: document.getElementById("layout-reset"),
+    settings: document.getElementById("layout-settings")
   };
   var photoEnabled = false;
   var notesVisible = false;
@@ -1698,7 +1699,8 @@
       calendar: "Upcoming",
       save: "Save",
       cancel: "Cancel",
-      reset: "Reset to default"
+      reset: "Reset to default",
+      settings: "Settings"
     };
     var selected = (layoutState && layoutState.selected) || "";
     var name = names[selected] || "Box";
@@ -1726,9 +1728,12 @@
     if (selected === "reset") {
       return { mode: "Reset to default", help: "OK puts the boxes back to the original layout. Save keeps it." };
     }
+    if (selected === "settings") {
+      return { mode: "Settings", help: "OK opens idle and startup options. Back returns to the boxes." };
+    }
     return {
       mode: "Arrange · " + name,
-      help: "Arrows choose a box. OK picks it up. Down from the bottom box reaches Save, Cancel, and Reset. Back leaves without saving."
+      help: "Arrows choose a box. OK picks it up. Down from the bottom box reaches Save, Cancel, Reset, and Settings. Back leaves without saving."
     };
   }
 
@@ -1748,7 +1753,7 @@
       layoutBar.style.marginLeft = "";
       return;
     }
-    var barW = 560;
+    var barW = 780;
     var margin = 24;
     var anchor = layoutBarAnchor ? cellRect(layoutBarAnchor) : null;
     var left = margin;

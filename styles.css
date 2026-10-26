@@ -1183,8 +1183,8 @@ p {
 
 .layout-action {
   display: inline-block;
-  min-width: 180px;
-  margin: 0 8px;
+  min-width: 140px;
+  margin: 6px 8px;
   padding: 8px 18px;
   border: 2px solid rgba(255, 255, 255, 0.16);
   border-radius: 16px;
