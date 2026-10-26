@@ -22,6 +22,7 @@ public class MainActivity extends Activity {
                     | View.SYSTEM_UI_FLAG_LAYOUT_STABLE;
 
     private DashboardController controller;
+    private UpdatePrompt prompt;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -33,6 +34,7 @@ public class MainActivity extends Activity {
         applyLaunchIntent(getIntent());
         controller = new DashboardController(this, findViewById(R.id.root), true);
         controller.start();
+        prompt = new UpdatePrompt(this, findViewById(R.id.root));
     }
 
     @Override
@@ -58,10 +60,16 @@ public class MainActivity extends Activity {
         if (controller != null) {
             controller.resume();
         }
+        if (prompt != null) {
+            prompt.resume();
+        }
     }
 
     @Override
     protected void onPause() {
+        if (prompt != null) {
+            prompt.pause();
+        }
         if (controller != null) {
             controller.pause();
         }
@@ -70,6 +78,10 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        if (prompt != null) {
+            prompt.destroy();
+            prompt = null;
+        }
         if (controller != null) {
             controller.destroy();
             controller = null;
@@ -79,6 +91,10 @@ public class MainActivity extends Activity {
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
+        boolean modal = controller != null && controller.modalOpen();
+        if (!modal && prompt != null && prompt.handleKey(event)) {
+            return true;
+        }
         if (controller != null && controller.handleKey(event)) {
             return true;
         }
@@ -87,6 +103,10 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
+        boolean modal = controller != null && controller.modalOpen();
+        if (!modal && prompt != null && prompt.consumeBack()) {
+            return;
+        }
         if (controller != null && controller.consumeBack()) {
             return;
         }

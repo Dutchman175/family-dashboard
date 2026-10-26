@@ -253,6 +253,52 @@ class MessageBoardTest {
     }
 
     @Test
+    fun cfgChangesPhotoSecondsOrResetsLayoutAndStaysOffTheBoard() {
+        val now = baseSec * 1000
+        val seconds = MessageBoard.control(
+            message("c1", baseSec, "Andy", "#cfg seconds=30"),
+            now
+        )
+        assertTrue(seconds is ControlCommand.Parsed.Apply)
+        val applied = seconds as ControlCommand.Parsed.Apply
+        assertEquals(30, applied.seconds)
+        assertFalse(applied.resetLayout)
+        assertEquals("c1", applied.id)
+
+        val both = ControlCommand.interpret("#cfg layout=reset seconds=18")
+        val bothApply = both as ControlCommand.Parsed.Apply
+        assertEquals(18, bothApply.seconds)
+        assertTrue(bothApply.resetLayout)
+
+        assertTrue(ControlCommand.interpret("#cfg seconds=7") is ControlCommand.Parsed.Ignore)
+        assertTrue(ControlCommand.interpret("#cfg topic=secret-name") is ControlCommand.Parsed.Ignore)
+        assertTrue(ControlCommand.interpret("#cfg calendar=https://example.com") is ControlCommand.Parsed.Ignore)
+        assertTrue(ControlCommand.interpret("#cfg seconds=30 seconds=18") is ControlCommand.Parsed.Ignore)
+        assertTrue(ControlCommand.interpret("Soccer at 6") is ControlCommand.Parsed.NotCommand)
+        assertTrue(ControlCommand.interpret("#CFG seconds=30") is ControlCommand.Parsed.NotCommand)
+
+        val shown = MessageBoard.ingest(
+            emptyList(),
+            message("c1", baseSec, "Andy", "#cfg seconds=30"),
+            now
+        )
+        assertTrue(shown.messages.isEmpty())
+        assertFalse(shown.changed)
+        val note = MessageBoard.ingest(
+            emptyList(),
+            message("n1", baseSec, "Andy", "Meet at the #cfg gate"),
+            now
+        )
+        assertEquals("Meet at the #cfg gate", note.messages[0].text)
+
+        val again = ControlIds.remember(listOf("c1"), "c1")
+        assertFalse(again.fresh)
+        val fresh = ControlIds.remember(listOf("c1"), "c2", max = 1)
+        assertTrue(fresh.fresh)
+        assertEquals(listOf("c2"), fresh.ids)
+    }
+
+    @Test
     fun unconfiguredSnapshotIsEmpty() {
         val json = MessageBoard.toJson(false, emptyList(), true)
         assertEquals("{\"configured\":false,\"pulse\":false,\"messages\":[]}", json)

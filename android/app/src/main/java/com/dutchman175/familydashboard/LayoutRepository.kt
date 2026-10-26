@@ -22,6 +22,12 @@ class LayoutRepository(context: Context) {
     var current: DashboardGrid.Layout = load()
         private set
 
+    fun reset() {
+        prefs.edit().remove(KEY_LAYOUT).commit()
+        current = DashboardGrid.defaultLayout()
+        notifyListeners()
+    }
+
     fun save(layout: DashboardGrid.Layout) {
         if (!DashboardGrid.fits(layout)) {
             return

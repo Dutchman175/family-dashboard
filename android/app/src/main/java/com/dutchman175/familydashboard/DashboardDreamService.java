@@ -27,6 +27,8 @@ public class DashboardDreamService extends DreamService {
         if (controller != null) {
             controller.resume();
         }
+        DashboardApp app = (DashboardApp) getApplication();
+        app.getUpdates().checkFromScreensaver();
     }
 
     @Override

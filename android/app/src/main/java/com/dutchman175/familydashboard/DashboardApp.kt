@@ -15,14 +15,27 @@ class DashboardApp : Application() {
     lateinit var layouts: LayoutRepository
         private set
 
+    lateinit var updates: UpdateRepository
+        private set
+
     override fun onCreate() {
         super.onCreate()
         calendar = CalendarRepository(this)
         calendar.start()
         photos = PhotoAlbumRepository(this)
         photos.start()
-        messages = MessageRepository(this)
-        messages.start()
         layouts = LayoutRepository(this)
+        messages = MessageRepository(this)
+        messages.setControlHandler { seconds, resetLayout ->
+            if (seconds != null) {
+                photos.setPhotoSeconds(seconds)
+            }
+            if (resetLayout) {
+                layouts.reset()
+            }
+        }
+        messages.start()
+        updates = UpdateRepository(this)
+        updates.start()
     }
 }

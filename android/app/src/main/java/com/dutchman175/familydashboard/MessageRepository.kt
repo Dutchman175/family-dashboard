@@ -22,6 +22,10 @@ class MessageRepository(context: Context) {
         fun onMessages(json: String)
     }
 
+    fun interface ControlHandler {
+        fun onControl(seconds: Int?, resetLayout: Boolean)
+    }
+
     private val prefs: SharedPreferences =
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
     private val timer = Executors.newSingleThreadScheduledExecutor { runnable ->
@@ -32,6 +36,10 @@ class MessageRepository(context: Context) {
     private val state = Any()
     private val started = AtomicBoolean(false)
     private val messages = ArrayList<MessageBoard.Note>()
+    private val controlIds = ArrayList<String>()
+
+    @Volatile
+    private var controlHandler: ControlHandler? = null
 
     @Volatile
     private var generation = 0
@@ -61,6 +69,8 @@ class MessageRepository(context: Context) {
         synchronized(state) {
             messages.clear()
             messages.addAll(MessageBoard.expire(MessageBoard.decode(prefs.getString(KEY_ROWS, null)), System.currentTimeMillis()))
+            controlIds.clear()
+            controlIds.addAll(decodeIds(prefs.getString(KEY_CONTROL_IDS, null)))
             if (messages.isEmpty()) {
                 prefs.edit().remove(KEY_ROWS).commit()
             }
@@ -101,6 +111,10 @@ class MessageRepository(context: Context) {
             }
         }
         intent.removeExtra(MessageTopic.EXTRA)
+    }
+
+    fun setControlHandler(handler: ControlHandler?) {
+        controlHandler = handler
     }
 
     fun snapshotJson(): String = snapshot
@@ -314,6 +328,17 @@ class MessageRepository(context: Context) {
 
     private fun onLine(line: String) {
         val now = System.currentTimeMillis()
+        when (val command = MessageBoard.control(line, now)) {
+            ControlCommand.Parsed.NotCommand -> Unit
+            ControlCommand.Parsed.Ignore -> {
+                Log.i(TAG, "control ignored")
+                return
+            }
+            is ControlCommand.Parsed.Apply -> {
+                applyControl(command)
+                return
+            }
+        }
         var pulse = false
         var notify = false
         synchronized(state) {
@@ -366,6 +391,32 @@ class MessageRepository(context: Context) {
             delay,
             TimeUnit.MILLISECONDS
         )
+    }
+
+    private fun applyControl(command: ControlCommand.Parsed.Apply) {
+        val fresh = synchronized(state) {
+            val remembered = ControlIds.remember(controlIds, command.id)
+            if (!remembered.fresh) {
+                false
+            } else {
+                controlIds.clear()
+                controlIds.addAll(remembered.ids)
+                prefs.edit().putString(KEY_CONTROL_IDS, controlIds.joinToString("\n")).commit()
+                true
+            }
+        }
+        if (!fresh) {
+            return
+        }
+        Log.i(TAG, "control secondsSet=${command.seconds != null} layoutReset=${command.resetLayout}")
+        controlHandler?.onControl(command.seconds, command.resetLayout)
+    }
+
+    private fun decodeIds(stored: String?): List<String> {
+        if (stored.isNullOrEmpty()) {
+            return emptyList()
+        }
+        return stored.split('\n').filter { it.isNotEmpty() }
     }
 
     private fun publish(requestPulse: Boolean) {
@@ -434,6 +485,7 @@ class MessageRepository(context: Context) {
         const val PREFS = "family_dashboard"
         const val KEY_TOPIC = "message_topic"
         const val KEY_ROWS = "message_rows"
+        const val KEY_CONTROL_IDS = "message_control_ids"
         const val MAX_LINE = 16 * 1024
         const val PULSE_MS = 4_000L
     }

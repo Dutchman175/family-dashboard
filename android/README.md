@@ -27,7 +27,32 @@ adb connect TV_IP
 adb install -r FamilyDashboard.apk
 ```
 
-`-r` replaces the copy that is already installed and keeps the calendar link. Open **Family Dashboard** from the apps row. Back leaves the app.
+`-r` replaces the copy that is already installed and keeps the calendar link, the album, the message topic, the photo timing, and the box layout. The signing key has to stay the same, and the new APK needs a higher versionCode. Open **Family Dashboard** from the apps row. Back leaves the app.
+
+## Updates on the TV
+
+Starting with this version, the TV looks for a newer build on its own. The first install of this version still uses the computer steps above. After that, leave the dashboard or the screensaver running.
+
+About every 6 hours, and again when the screensaver starts, the app reads one small public file:
+
+https://github.com/Dutchman175/family-dashboard-releases/releases/latest/download/version.json
+
+That file is only a version code, a version name, the APK address, and a sha256. The app downloads the APK from the public repo `Dutchman175/family-dashboard-releases`, checks the sha256, and shows a banner: **Update ready - press OK to install**. Press OK once. Android then shows its own confirm screen. Press Back on the banner to hide it for about 6 hours.
+
+The check does not use this repo, and it does not use a GitHub token. This repo can be private. The public repo should contain only `version.json` and `FamilyDashboard.apk`. Do not put the calendar link, the album link, the ntfy topic, or the keystore there.
+
+The first time Android blocks the install, the app explains why and opens the setting **Install unknown apps** for Family Dashboard. Turn that on, come back, and press OK again. That setting is once per TV.
+
+To publish a later build, raise versionCode, build the signed APK with the same keystore, and replace the two files on the public repo's latest release. `version.json` looks like this, with the real sha256 of that APK:
+
+```json
+{
+  "versionCode": 9,
+  "versionName": "1.6.0",
+  "apkUrl": "https://github.com/Dutchman175/family-dashboard-releases/releases/download/v1.6.0/FamilyDashboard.apk",
+  "sha256": "PASTE-THE-SHA256-HERE"
+}
+```
 
 Some TiVo Stream 4K units on Android 12 remove sideloaded apps. A system app named CoreService does that. If the dashboard disappears after it is installed, connect with adb and run:
 
@@ -114,6 +139,15 @@ adb shell am start -n com.dutchman175.familydashboard/.MainActivity --es message
 ```
 
 To wipe the messages that are on screen without turning the board off, send a message whose text is exactly `clear`.
+
+A message that starts with `#cfg ` changes a setting instead of showing on the board. It uses the same private topic, so anyone who can post a note can use it. It cannot change the calendar link, the album link, or the topic. Two settings are accepted:
+
+```
+#cfg seconds=30
+#cfg layout=reset
+```
+
+`seconds` is how long each photo stays up. The allowed values are 5, 10, 15, 18, 20, 30, 45, 60, 90, 120, 300, and 600. `layout=reset` puts the boxes back to the original arrangement. Both can be sent together: `#cfg seconds=30 layout=reset`. Anything else that starts with `#cfg` is ignored and is not shown. A normal note can still say the word clear or the word layout, as long as it does not start with `#cfg `.
 
 ### iPhone Shortcut
 

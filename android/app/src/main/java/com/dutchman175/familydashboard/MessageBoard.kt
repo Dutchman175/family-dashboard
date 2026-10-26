@@ -72,6 +72,9 @@ internal object MessageBoard {
             return unchanged(existing)
         }
         val rawText = obj.optString("message", "")
+        if (ControlCommand.interpret(rawText) !is ControlCommand.Parsed.NotCommand) {
+            return unchanged(existing)
+        }
         if (rawText.trim() == "clear") {
             val had = existing.isNotEmpty()
             return Ingest(emptyList(), changed = had, pulse = false, cleared = true)
@@ -96,6 +99,34 @@ internal object MessageBoard {
         val age = nowMillis - at
         val pulse = age in 0..PULSE_WINDOW_MS
         return Ingest(next, changed = true, pulse = pulse, cleared = false)
+    }
+
+    /**
+     * A `#cfg` note is a setting, not a message. Anything that starts with
+     * that prefix is kept off the board, including a command this app rejects.
+     */
+    fun control(line: String, nowMillis: Long): ControlCommand.Parsed {
+        val obj = try {
+            JSONObject(line)
+        } catch (thrown: Exception) {
+            return ControlCommand.Parsed.NotCommand
+        }
+        if (obj.optString("event") != "message") {
+            return ControlCommand.Parsed.NotCommand
+        }
+        if (!obj.has("message") || obj.isNull("message")) {
+            return ControlCommand.Parsed.NotCommand
+        }
+        val rawText = obj.optString("message", "")
+        return when (val parsed = ControlCommand.interpret(rawText)) {
+            ControlCommand.Parsed.NotCommand -> ControlCommand.Parsed.NotCommand
+            ControlCommand.Parsed.Ignore -> ControlCommand.Parsed.Ignore
+            is ControlCommand.Parsed.Apply -> {
+                val at = messageTime(obj.optLong("time", 0L), nowMillis)
+                val id = safeId(obj.optString("id", ""), at, rawText.trim())
+                parsed.copy(id = id)
+            }
+        }
     }
 
     fun expire(messages: List<Note>, nowMillis: Long): List<Note> {

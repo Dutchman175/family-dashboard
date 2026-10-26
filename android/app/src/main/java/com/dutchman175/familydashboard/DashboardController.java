@@ -371,6 +371,17 @@ final class DashboardController {
     }
 
     /**
+     * True while a panel already owns the remote, so an update banner does
+     * not take OK away from it.
+     */
+    boolean modalOpen() {
+        return editor.isOpen()
+                || settingsOpen
+                || monthOpen
+                || errorView.getVisibility() == View.VISIBLE;
+    }
+
+    /**
      * TV remote keys for the launcher only. The screensaver constructs this
      * controller with interactive false and never receives input.
      */
