@@ -14,7 +14,8 @@ class DashboardGridTest {
         assertEquals(DashboardGrid.Cell(0, 0, 8, 7), layout.photo)
         assertEquals(DashboardGrid.Cell(0, 7, 8, 1), layout.notes)
         assertEquals(DashboardGrid.Cell(8, 0, 4, 2), layout.clock)
-        assertEquals(DashboardGrid.Cell(8, 2, 4, 3), layout.weather)
+        assertEquals(DashboardGrid.Cell(8, 2, 4, 2), layout.weather)
+        assertEquals(DashboardGrid.Cell(8, 4, 4, 1), layout.bedtime)
         assertEquals(DashboardGrid.Cell(8, 5, 4, 1), layout.joke)
         assertEquals(DashboardGrid.Cell(8, 6, 4, 2), layout.calendar)
         val covered = DashboardGrid.IDS.sumOf { id ->
@@ -75,6 +76,8 @@ class DashboardGridTest {
         assertFalse(encoded.contains("webcal"))
         assertNull(DashboardGrid.parse("not json"))
         assertNull(DashboardGrid.parse("{\"photo\":{\"col\":0,\"row\":0,\"cols\":12,\"rows\":8}}"))
+        val legacy = """{"photo":{"col":0,"row":0,"cols":8,"rows":7},"notes":{"col":0,"row":7,"cols":8,"rows":1},"clock":{"col":8,"row":0,"cols":4,"rows":2},"weather":{"col":8,"row":2,"cols":4,"rows":3},"joke":{"col":8,"row":5,"cols":4,"rows":1},"calendar":{"col":8,"row":6,"cols":4,"rows":2}}"""
+        assertEquals(DashboardGrid.defaultLayout(), DashboardGrid.parse(legacy))
         val overlap = encoded.replace("\"clock\":{\"col\":8", "\"clock\":{\"col\":6")
         assertNull(DashboardGrid.parse(overlap))
     }
@@ -85,7 +88,8 @@ class DashboardGridTest {
         assertEquals("notes", DashboardGrid.nearest(layout, "photo", 0, 1))
         assertEquals("weather", DashboardGrid.nearest(layout, "photo", 1, 0))
         assertEquals("weather", DashboardGrid.nearest(layout, "clock", 0, 1))
-        assertEquals("joke", DashboardGrid.nearest(layout, "weather", 0, 1))
+        assertEquals("bedtime", DashboardGrid.nearest(layout, "weather", 0, 1))
+        assertEquals("joke", DashboardGrid.nearest(layout, "bedtime", 0, 1))
         assertEquals("calendar", DashboardGrid.nearest(layout, "joke", 0, 1))
         assertEquals("notes", DashboardGrid.nearest(layout, "calendar", -1, 0))
         assertNull(DashboardGrid.nearest(layout, "calendar", 0, 1))
@@ -140,6 +144,7 @@ class LayoutEditorTest {
         assertTrue(editor.stateJson().contains("\"cols\":4"))
         assertFalse(editor.stateJson().contains("\"cols\":3"))
         editor.open("clock")
+        editor.down()
         editor.down()
         editor.down()
         editor.down()

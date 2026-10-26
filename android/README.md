@@ -187,6 +187,17 @@ A short press of OK is unchanged. On the photo, it opens seconds per photo. On U
 
 The joke box uses a list of kid-friendly jokes stored in the app. There is no joke website, so it works with the internet off and stays the same clean set. A new joke starts at midnight Central Time, the same clock the dashboard already shows. The dashboard and the screensaver pick the joke from that date, so they always match.
 
+## Bedtime
+
+Jack and Girls each have a row in a Bedtime box. It sits on the right, under the weather and above the joke, one row tall. The photo and the notes strip are the same size as before. The box can be moved and resized with the others. It works on the screensaver and does not use the internet.
+
+Times are Central Time. Edit them in `bedtime.js`. Weekend nights are Friday and Saturday. Sunday through Thursday nights use the school-night time.
+
+- Jack: 8:00 PM on school nights, 9:00 PM on Friday and Saturday nights.
+- Girls: 7:00 PM on school nights, 8:00 PM on Friday and Saturday nights.
+
+Earlier in the day the row is dim and says `Bedtime 8:00 PM`. About three hours before, it counts down, such as `Bedtime in 2h 15m`, and still shows the clock time. The last 15 minutes turn gold. At bedtime it says `Bedtime! 🌙` for about an hour, then it shows the next night.
+
 In the short strip under the weather, the question and the answer both show, with the answer in gold. If you make the box taller, the question shows first and the answer fades in after about four seconds. The words get bigger when the box gets bigger.
 
 ## Screensaver on a TiVo Stream 4K

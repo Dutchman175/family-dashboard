@@ -998,6 +998,7 @@ p {
 .dashboard.is-grid .panel-clock,
 .dashboard.is-grid .panel-weather,
 .dashboard.is-grid .panel-joke,
+.dashboard.is-grid .panel-bedtime,
 .dashboard.is-grid .panel-calendar {
   position: absolute;
   margin: 0;
@@ -1010,6 +1011,7 @@ p {
 .dashboard.is-grid .panel-clock,
 .dashboard.is-grid .panel-weather,
 .dashboard.is-grid .panel-joke,
+.dashboard.is-grid .panel-bedtime,
 .dashboard.is-grid .panel-calendar,
 .dashboard.is-grid .panel-messages,
 .dashboard.is-grid .panel-photo.is-on {
@@ -1018,6 +1020,7 @@ p {
 
 .dashboard.is-grid .panel-messages,
 .dashboard.is-grid .panel-joke,
+.dashboard.is-grid .panel-bedtime,
 .dashboard.is-grid .panel-calendar {
   flex-direction: column;
 }
@@ -1370,6 +1373,72 @@ p {
 .panel-joke.is-tiny .joke-punch {
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+.panel-bedtime {
+  display: none;
+  background: #1e2838;
+  border: 2px solid rgba(255, 255, 255, 0.16);
+  border-radius: 28px;
+  padding: 8px 16px;
+  overflow: hidden;
+  justify-content: center;
+}
+
+.bedtime-list {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 0;
+  min-width: 0;
+}
+
+.bedtime-row {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  min-width: 0;
+  font-size: calc(var(--bed-px, 28) * 1px);
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.bedtime-name {
+  flex: 0 0 auto;
+  margin-right: 12px;
+  color: #f6f3ec;
+}
+
+.bedtime-line {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: #f6f3ec;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bedtime-clock {
+  flex: 0 0 auto;
+  margin-left: 12px;
+  color: #ddd6cb;
+  font-variant-numeric: tabular-nums;
+}
+
+.bedtime-clock:empty {
+  display: none;
+}
+
+.bedtime-row.is-later .bedtime-name,
+.bedtime-row.is-later .bedtime-line {
+  color: #9aa3b2;
+}
+
+.bedtime-row.is-soon .bedtime-line,
+.bedtime-row.is-soon .bedtime-clock,
+.bedtime-row.is-now .bedtime-line,
+.bedtime-row.is-now .bedtime-name {
+  color: #f2c14d;
 }
 
 .dashboard.is-grid .weather-body,

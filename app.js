@@ -112,6 +112,7 @@
     }
     if (!shown) renderLocalClock(now);
     if (typeof showTodayJoke === "function") showTodayJoke();
+    if (typeof renderBedtime === "function") renderBedtime(now);
     refreshMessagesForDay();
   }
 
@@ -1320,6 +1321,7 @@
     clock: clockPanel,
     weather: document.getElementById("weather"),
     joke: document.getElementById("joke"),
+    bedtime: document.getElementById("bedtime"),
     calendar: calendarEl
   };
 
@@ -1328,7 +1330,8 @@
       photo: { col: 0, row: 0, cols: 8, rows: 7 },
       notes: { col: 0, row: 7, cols: 8, rows: 1 },
       clock: { col: 8, row: 0, cols: 4, rows: 2 },
-      weather: { col: 8, row: 2, cols: 4, rows: 3 },
+      weather: { col: 8, row: 2, cols: 4, rows: 2 },
+      bedtime: { col: 8, row: 4, cols: 4, rows: 1 },
       joke: { col: 8, row: 5, cols: 4, rows: 1 },
       calendar: { col: 8, row: 6, cols: 4, rows: 2 }
     };
@@ -1351,7 +1354,8 @@
     var d = defaultBoxes();
     return sameCell(boxes.photo, d.photo) && sameCell(boxes.notes, d.notes) &&
       sameCell(boxes.clock, d.clock) && sameCell(boxes.weather, d.weather) &&
-      sameCell(boxes.joke, d.joke) && sameCell(boxes.calendar, d.calendar);
+      sameCell(boxes.joke, d.joke) && sameCell(boxes.bedtime, d.bedtime) &&
+      sameCell(boxes.calendar, d.calendar);
   }
 
   function shownBoxes(boxes) {
@@ -1362,9 +1366,10 @@
         return {
           photo: photo,
           notes: { col: 0, row: 7, cols: 12, rows: 1 },
-          clock: { col: 0, row: 0, cols: 12, rows: 3 },
-          weather: { col: 0, row: 3, cols: 6, rows: 3 },
-          calendar: { col: 6, row: 3, cols: 6, rows: 3 },
+          clock: { col: 0, row: 0, cols: 12, rows: 2 },
+          weather: { col: 0, row: 2, cols: 6, rows: 3 },
+          calendar: { col: 6, row: 2, cols: 6, rows: 3 },
+          bedtime: { col: 0, row: 5, cols: 12, rows: 1 },
           joke: { col: 0, row: 6, cols: 12, rows: 1 }
         };
       }
@@ -1372,9 +1377,10 @@
         photo: photo,
         notes: notes,
         clock: { col: 0, row: 0, cols: 12, rows: 3 },
-        weather: { col: 0, row: 3, cols: 6, rows: 3 },
-        calendar: { col: 6, row: 3, cols: 6, rows: 3 },
-        joke: { col: 0, row: 6, cols: 12, rows: 2 }
+        weather: { col: 0, row: 3, cols: 6, rows: 2 },
+        calendar: { col: 6, row: 3, cols: 6, rows: 2 },
+        joke: { col: 0, row: 5, cols: 12, rows: 1 },
+        bedtime: { col: 0, row: 6, cols: 12, rows: 2 }
       };
     }
     if (layoutEditing || notesVisible || !photo || !notes) return boxes;
@@ -1385,6 +1391,7 @@
         clock: boxes.clock,
         weather: boxes.weather,
         joke: boxes.joke,
+        bedtime: boxes.bedtime,
         calendar: boxes.calendar
       };
       return copy;
@@ -1518,6 +1525,7 @@
     if (clockPanel) clockPanel.style.display = "block";
     if (boxEls.weather) boxEls.weather.style.display = "flex";
     if (boxEls.joke) boxEls.joke.style.display = "flex";
+    if (boxEls.bedtime) boxEls.bedtime.style.display = "flex";
     var selected = layoutState && layoutState.selected;
     var grabbed = !!(layoutState && layoutState.grabbed);
     var resize = grabbed && layoutState.mode === "resize";
@@ -1531,6 +1539,7 @@
     fitCalendarSize();
     fitNotes();
     fitJoke();
+    fitBedtime();
     renderEditor();
   }
 
@@ -1620,6 +1629,64 @@
     }
   }
 
+  var bedtimeListEl = document.getElementById("bedtime-list");
+  var bedtimeKey = "";
+
+  function renderBedtime(now) {
+    if (!bedtimeListEl || typeof bedtimeRows !== "function") return;
+    var rows;
+    try {
+      rows = bedtimeRows(now || new Date());
+    } catch (e) {
+      return;
+    }
+    if (!rows || !rows.length) return;
+    var key = "";
+    var i;
+    for (i = 0; i < rows.length; i++) {
+      key += rows[i].name + "|" + rows[i].phase + "|" + rows[i].line + "|" + rows[i].time + ";";
+    }
+    if (key === bedtimeKey && bedtimeListEl.children.length === rows.length) {
+      fitBedtime();
+      return;
+    }
+    bedtimeKey = key;
+    while (bedtimeListEl.children.length < rows.length) {
+      var row = document.createElement("div");
+      row.className = "bedtime-row";
+      row.appendChild(document.createElement("p")).className = "bedtime-name";
+      row.appendChild(document.createElement("p")).className = "bedtime-line";
+      row.appendChild(document.createElement("p")).className = "bedtime-clock";
+      bedtimeListEl.appendChild(row);
+    }
+    while (bedtimeListEl.children.length > rows.length) {
+      bedtimeListEl.removeChild(bedtimeListEl.lastChild);
+    }
+    for (i = 0; i < rows.length; i++) {
+      var item = rows[i];
+      var node = bedtimeListEl.children[i];
+      node.className = "bedtime-row is-" + (item.phase || "later");
+      node.children[0].textContent = item.name || "";
+      node.children[1].textContent = item.line || "";
+      node.children[2].textContent = item.time || "";
+    }
+    fitBedtime();
+  }
+
+  function fitBedtime() {
+    var panel = boxEls.bedtime;
+    if (!panel || !bedtimeListEl) return;
+    var count = bedtimeListEl.children.length || 2;
+    var w = panel.clientWidth - 28;
+    var h = panel.clientHeight - 12;
+    if (w < 40 || h < 24) return;
+    var line = Math.floor(h / count);
+    var px = Math.round(Math.min(w * 0.052, line * 0.62));
+    if (px < 16) px = 16;
+    if (px > 48) px = 48;
+    panel.style.setProperty("--bed-px", String(px));
+  }
+
   function editorWords() {
     var names = {
       photo: "Photo",
@@ -1627,6 +1694,7 @@
       clock: "Clock",
       weather: "Weather",
       joke: "Joke",
+      bedtime: "Bedtime",
       calendar: "Upcoming",
       save: "Save",
       cancel: "Cancel",

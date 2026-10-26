@@ -5,14 +5,14 @@ import org.json.JSONObject
 /**
  * 12 by 8 screen grid. The default puts the photo on the left, the notes
  * strip under it, and the clock, weather, and Upcoming down the right side,
- * which is the v1.4.0 arrangement, plus a one-row joke strip between
- * the weather and Upcoming. The photo is the same size as v1.4.0.
- * Cells never overlap and never leave the grid.
+ * which is the v1.4.0 arrangement, plus a joke strip and a bedtime
+ * countdown on the right. The photo and the notes strip stay the same
+ * size. Cells never overlap and never leave the grid.
  */
 object DashboardGrid {
     const val COLS = 12
     const val ROWS = 8
-    val IDS = listOf("photo", "notes", "clock", "weather", "calendar", "joke")
+    val IDS = listOf("photo", "notes", "clock", "weather", "bedtime", "joke", "calendar")
 
     data class Cell(val col: Int, val row: Int, val cols: Int, val rows: Int)
 
@@ -22,7 +22,8 @@ object DashboardGrid {
         val clock: Cell,
         val weather: Cell,
         val calendar: Cell,
-        val joke: Cell
+        val joke: Cell,
+        val bedtime: Cell
     ) {
         fun cell(id: String): Cell {
             return when (id) {
@@ -32,6 +33,7 @@ object DashboardGrid {
                 "weather" -> weather
                 "calendar" -> calendar
                 "joke" -> joke
+                "bedtime" -> bedtime
                 else -> throw IllegalArgumentException("box")
             }
         }
@@ -44,6 +46,7 @@ object DashboardGrid {
                 "weather" -> copy(weather = cell)
                 "calendar" -> copy(calendar = cell)
                 "joke" -> copy(joke = cell)
+                "bedtime" -> copy(bedtime = cell)
                 else -> this
             }
         }
@@ -54,7 +57,8 @@ object DashboardGrid {
             photo = Cell(0, 0, 8, 7),
             notes = Cell(0, 7, 8, 1),
             clock = Cell(8, 0, 4, 2),
-            weather = Cell(8, 2, 4, 3),
+            weather = Cell(8, 2, 4, 2),
+            bedtime = Cell(8, 4, 4, 1),
             joke = Cell(8, 5, 4, 1),
             calendar = Cell(8, 6, 4, 2)
         )
@@ -120,18 +124,101 @@ object DashboardGrid {
         }
         return try {
             val obj = JSONObject(raw)
-            val layout = Layout(
-                photo = parseCell(obj.getJSONObject("photo")),
-                notes = parseCell(obj.getJSONObject("notes")),
-                clock = parseCell(obj.getJSONObject("clock")),
-                weather = parseCell(obj.getJSONObject("weather")),
-                calendar = parseCell(obj.getJSONObject("calendar")),
-                joke = parseCell(obj.getJSONObject("joke"))
-            )
+            val photo = parseCell(obj.getJSONObject("photo"))
+            val notes = parseCell(obj.getJSONObject("notes"))
+            val clock = parseCell(obj.getJSONObject("clock"))
+            val weather = parseCell(obj.getJSONObject("weather"))
+            val calendar = parseCell(obj.getJSONObject("calendar"))
+            val joke = parseCell(obj.getJSONObject("joke"))
+            val layout = if (obj.has("bedtime")) {
+                Layout(
+                    photo,
+                    notes,
+                    clock,
+                    weather,
+                    calendar,
+                    joke,
+                    parseCell(obj.getJSONObject("bedtime"))
+                )
+            } else {
+                insertBedtime(photo, notes, clock, weather, calendar, joke) ?: return null
+            }
             if (fits(layout)) layout else null
         } catch (thrown: Exception) {
             null
         }
+    }
+
+    /**
+     * Older saved layouts have no bedtime box. An empty strip is used when
+     * one exists. Otherwise the bottom row of weather, Upcoming, the clock,
+     * or the joke is given to bedtime. The photo and the notes strip are
+     * left alone.
+     */
+    private fun insertBedtime(
+        photo: Cell,
+        notes: Cell,
+        clock: Cell,
+        weather: Cell,
+        calendar: Cell,
+        joke: Cell
+    ): Layout? {
+        val existing = listOf(photo, notes, clock, weather, calendar, joke)
+        val gap = findGap(existing)
+        if (gap != null) {
+            val placed = Layout(photo, notes, clock, weather, calendar, joke, gap)
+            if (fits(placed)) {
+                return placed
+            }
+        }
+        val donors = listOf(
+            "weather" to weather,
+            "calendar" to calendar,
+            "clock" to clock,
+            "joke" to joke
+        )
+        for (donor in donors) {
+            val cell = donor.second
+            if (cell.rows < 2) {
+                continue
+            }
+            val slot = Cell(cell.col, cell.row + cell.rows - 1, cell.cols, 1)
+            val placed = Layout(photo, notes, clock, weather, calendar, joke, slot)
+                .with(donor.first, cell.copy(rows = cell.rows - 1))
+            if (fits(placed)) {
+                return placed
+            }
+        }
+        return null
+    }
+
+    private fun findGap(cells: List<Cell>): Cell? {
+        var row = 0
+        while (row < ROWS) {
+            var col = 0
+            while (col < COLS) {
+                if (covered(cells, col, row)) {
+                    col++
+                    continue
+                }
+                var end = col
+                while (end < COLS && !covered(cells, end, row)) {
+                    end++
+                }
+                val width = end - col
+                if (width >= 3) {
+                    return Cell(col, row, minOf(4, width), 1)
+                }
+                col = end
+            }
+            row++
+        }
+        return null
+    }
+
+    private fun covered(cells: List<Cell>, col: Int, row: Int): Boolean {
+        val spot = Cell(col, row, 1, 1)
+        return cells.any { overlaps(it, spot) }
     }
 
     fun encode(layout: Layout): String {

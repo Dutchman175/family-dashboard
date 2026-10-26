@@ -11,7 +11,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<link rel="stylesheet" href="styles.css?v=13">
+<link rel="stylesheet" href="styles.css?v=14">
 </head>
 <body>
 <div id="stage" class="stage">
@@ -52,6 +52,9 @@
           <div id="weather-current" class="weather-current"></div>
           <div id="weather-forecast" class="weather-forecast"></div>
         </div>
+      </section>
+      <section class="panel panel-bedtime" id="bedtime" data-label="Bedtime">
+        <div id="bedtime-list" class="bedtime-list"></div>
       </section>
       <section class="panel panel-joke" id="joke" data-label="Joke">
         <p class="joke-kicker">Joke of the Day</p>
@@ -95,6 +98,7 @@
   <p class="noscript">JavaScript is off, so the clock and weather cannot run.</p>
 </noscript>
 <script src="jokes.js?v=13"></script>
-<script src="app.js?v=14"></script>
+<script src="bedtime.js?v=1"></script>
+<script src="app.js?v=15"></script>
 </body>
 </html>
