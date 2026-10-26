@@ -998,7 +998,9 @@
 
   function setPhotoPanel(on) {
     if (!photoPanel) return;
+    var messagesOn = dashEl && dashEl.className.indexOf("has-messages") >= 0;
     var wantDash = on ? "dashboard has-photo" : "dashboard";
+    if (messagesOn) wantDash += " has-messages";
     var layoutChanged = !dashEl || dashEl.className !== wantDash;
     var focused = photoPanel.className.indexOf("is-focused") >= 0;
     var cls = on ? "panel panel-photo is-on" : "panel panel-photo";
@@ -1141,6 +1143,95 @@
     applyPhotoPlaylist(playlist);
   };
 
+  var messagesEl = document.getElementById("messages");
+  var messageListEl = document.getElementById("message-list");
+  var lastMessages = null;
+  var MESSAGE_TTL = 24 * 60 * 60 * 1000;
+
+  function asPlain(value, max) {
+    var s = String(value == null ? "" : value);
+    s = s.replace(/[\u0000-\u001f\u007f\u202a-\u202e\u2066-\u2069]/g, " ").replace(/\s+/g, " ").trim();
+    if (s.length > max) s = s.substring(0, max);
+    return s;
+  }
+
+  function agoLabel(at) {
+    var delta = Date.now() - at;
+    if (!(delta >= 0)) return "just now";
+    var min = Math.floor(delta / 60000);
+    if (min < 1) return "just now";
+    if (min < 60) return min === 1 ? "1 min ago" : (min + " min ago");
+    var hr = Math.floor(min / 60);
+    if (hr < 24) return hr === 1 ? "1 hour ago" : (hr + " hours ago");
+    return "1 day ago";
+  }
+
+  function renderMessages(payload) {
+    if (!messagesEl || !messageListEl) return;
+    var pulse = !!(payload && payload.pulse);
+    var raw = payload && payload.messages;
+    lastMessages = {
+      configured: !!(payload && payload.configured),
+      pulse: false,
+      messages: raw && raw.length ? raw : []
+    };
+    var visible = [];
+    var i;
+    for (i = 0; i < lastMessages.messages.length && visible.length < 3; i++) {
+      var item = lastMessages.messages[i];
+      if (!item) continue;
+      var text = asPlain(item.text, 200);
+      var sender = asPlain(item.sender, 40);
+      var at = Number(item.at);
+      if (!text || !isFinite(at)) continue;
+      if (Date.now() - at >= MESSAGE_TTL) continue;
+      visible.push({ sender: sender || "Family", text: text, at: at });
+    }
+    if (dashEl) {
+      var photoOn = dashEl.className.indexOf("has-photo") >= 0;
+      dashEl.className = photoOn ? "dashboard has-photo" : "dashboard";
+      if (visible.length) dashEl.className += " has-messages";
+    }
+    if (!visible.length) {
+      messagesEl.className = "panel panel-messages";
+      messagesEl.setAttribute("aria-hidden", "true");
+      clearNode(messageListEl);
+      fitCalendar();
+      return;
+    }
+    messagesEl.className = "panel panel-messages is-on";
+    if (pulse) {
+      void messagesEl.offsetWidth;
+      messagesEl.className = "panel panel-messages is-on is-pulse";
+    }
+    messagesEl.setAttribute("aria-hidden", "false");
+    clearNode(messageListEl);
+    for (i = 0; i < visible.length; i++) {
+      var note = visible[i];
+      var block = el("p", "message message-line");
+      block.appendChild(el("span", "message-who", note.sender + ", " + agoLabel(note.at) + ":"));
+      block.appendChild(document.createTextNode(" " + note.text));
+      messageListEl.appendChild(block);
+    }
+    fitCalendar();
+  }
+
+  function refreshMessages() {
+    if (!lastMessages) return;
+    renderMessages(lastMessages);
+  }
+
+  function pullMessages() {
+    if (!window.FamilyMessages || typeof window.FamilyMessages.getMessages !== "function") return;
+    try {
+      renderMessages(JSON.parse(window.FamilyMessages.getMessages()));
+    } catch (e) {}
+  }
+
+  window.onMessages = function (payload) {
+    renderMessages(payload);
+  };
+
   function start() {
     fitStage();
     updateClock();
@@ -1156,6 +1247,8 @@
     fetchWeather();
     pullCalendar();
     pullPhotos();
+    pullMessages();
+    window.setInterval(refreshMessages, 30000);
   }
 
   if (document.readyState === "loading") {

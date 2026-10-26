@@ -97,6 +97,7 @@ public class MainActivity extends Activity {
         DashboardApp app = (DashboardApp) getApplication();
         app.getCalendar().applyIntent(intent);
         app.getPhotos().applyIntent(intent);
+        app.getMessages().applyIntent(intent);
     }
 
     private static final String PHOTO_LOG = "FamilyDashPhotos";

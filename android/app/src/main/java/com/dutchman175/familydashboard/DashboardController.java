@@ -48,6 +48,8 @@ final class DashboardController {
     private final CalendarRepository.SnapshotListener snapshotListener;
     private final PhotoAlbumRepository photos;
     private final PhotoAlbumRepository.PlaylistListener playlistListener;
+    private final MessageRepository messages;
+    private final MessageRepository.MessageListener messageListener;
 
     private boolean destroyed;
     private boolean loadFailed;
@@ -98,6 +100,13 @@ final class DashboardController {
                 pushPlaylist(json);
             }
         };
+        this.messages = app.getMessages();
+        this.messageListener = new MessageRepository.MessageListener() {
+            @Override
+            public void onMessages(String json) {
+                pushMessages(json);
+            }
+        };
         if (!interactive) {
             retryButton.setVisibility(View.GONE);
         } else {
@@ -115,6 +124,7 @@ final class DashboardController {
         calendar.addListener(snapshotListener);
         calendar.requestRefresh();
         photos.addListener(playlistListener);
+        messages.addListener(messageListener);
         load();
     }
 
@@ -140,10 +150,12 @@ final class DashboardController {
         handler.removeCallbacks(idleClose);
         calendar.removeListener(snapshotListener);
         photos.removeListener(playlistListener);
+        messages.removeListener(messageListener);
         webView.setWebViewClient(null);
         webView.stopLoading();
         webView.removeJavascriptInterface("FamilyCalendar");
         webView.removeJavascriptInterface("FamilyPhotos");
+        webView.removeJavascriptInterface("FamilyMessages");
         ViewParent parent = webView.getParent();
         if (parent instanceof ViewGroup) {
             ((ViewGroup) parent).removeView(webView);
@@ -193,6 +205,7 @@ final class DashboardController {
 
         webView.addJavascriptInterface(new CalendarBridge(calendar), "FamilyCalendar");
         webView.addJavascriptInterface(new PhotoBridge(photos), "FamilyPhotos");
+        webView.addJavascriptInterface(new MessageBridge(messages), "FamilyMessages");
         if (Build.VERSION.SDK_INT >= 23) {
             webView.setWebViewClient(new ModernClient());
         } else {
@@ -212,6 +225,7 @@ final class DashboardController {
                 hideError();
                 pushSnapshot(calendar.snapshotJson());
                 pushPlaylist(photos.playlistJson());
+                pushMessages(messages.snapshotJson());
                 pushTvState();
             }
         }
@@ -604,6 +618,26 @@ final class DashboardController {
                 }
                 webView.evaluateJavascript(
                         "window.onCalendarSnapshot&&window.onCalendarSnapshot(" + json + ")",
+                        null);
+            }
+        });
+    }
+
+    private void pushMessages(final String json) {
+        if (destroyed || json == null || json.length() == 0 || json.charAt(0) != '{') {
+            return;
+        }
+        if (json.indexOf('\n') >= 0 || json.indexOf('<') >= 0) {
+            return;
+        }
+        handler.post(new Runnable() {
+            @Override
+            public void run() {
+                if (destroyed) {
+                    return;
+                }
+                webView.evaluateJavascript(
+                        "window.onMessages&&window.onMessages(" + json + ")",
                         null);
             }
         });

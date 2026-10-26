@@ -423,6 +423,76 @@ p {
   display: block;
 }
 
+.photo-col {
+  display: none;
+  min-width: 0;
+  min-height: 0;
+}
+
+.panel-messages {
+  display: none;
+  min-width: 0;
+  min-height: 0;
+  background: #1e2838;
+  border: 2px solid rgba(255, 255, 255, 0.16);
+  border-radius: 28px;
+  padding: 12px 22px;
+  overflow: hidden;
+}
+
+.panel-messages.is-on {
+  display: flex;
+  flex-direction: column;
+  width: auto;
+  flex: 0 0 auto;
+}
+
+.panel-messages.is-pulse {
+  -webkit-animation: message-pulse 1.15s ease-out 3;
+  animation: message-pulse 1.15s ease-out 3;
+}
+
+@-webkit-keyframes message-pulse {
+  0%, 35% {
+    border-color: #f2c14d;
+    -webkit-box-shadow: inset 0 0 0 5px #f2c14d;
+    box-shadow: inset 0 0 0 5px #f2c14d;
+  }
+  100% {
+    border-color: rgba(255, 255, 255, 0.16);
+    -webkit-box-shadow: inset 0 0 0 0 rgba(242, 193, 77, 0);
+    box-shadow: inset 0 0 0 0 rgba(242, 193, 77, 0);
+  }
+}
+
+@keyframes message-pulse {
+  0%, 35% {
+    border-color: #f2c14d;
+    box-shadow: inset 0 0 0 5px #f2c14d;
+  }
+  100% {
+    border-color: rgba(255, 255, 255, 0.16);
+    box-shadow: inset 0 0 0 0 rgba(242, 193, 77, 0);
+  }
+}
+
+.message + .message {
+  margin-top: 6px;
+}
+
+.message-line {
+  font-size: 28px;
+  line-height: 36px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.message-who {
+  color: #f2c14d;
+}
+
 .panel-photo {
   display: none;
   position: relative;
@@ -541,18 +611,41 @@ p {
   color: #ddd6cb;
 }
 
-/* Album set: photo is the large left panel. Clock, weather, and Upcoming stack on the right. */
+/* Album set: photo fills the left column. Messages, when present, sit under it. Clock, weather, and Upcoming stack on the right. */
 .dashboard.has-photo {
   flex-direction: row;
   align-items: stretch;
   padding: 28px;
 }
 
-.dashboard.has-photo .panel-photo.is-on {
+.dashboard.has-messages:not(.has-photo) .photo-col {
+  display: flex;
+  flex-direction: column;
+  order: 2;
+  width: auto;
+  flex: 0 0 auto;
+  margin-top: 28px;
+}
+
+.dashboard.has-photo .photo-col {
+  display: flex;
+  flex-direction: column;
   width: 1320px;
   flex: 0 0 1320px;
-  margin-left: 0;
   margin-right: 22px;
+  min-height: 0;
+}
+
+.dashboard.has-photo .panel-photo.is-on {
+  width: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.dashboard.has-photo .panel-messages.is-on {
+  margin-top: 14px;
 }
 
 .dashboard.has-photo .main-col {
