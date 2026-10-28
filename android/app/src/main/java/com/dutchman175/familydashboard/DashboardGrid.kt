@@ -3,11 +3,9 @@ package com.dutchman175.familydashboard
 import org.json.JSONObject
 
 /**
- * 12 by 8 screen grid. The default puts the photo on the left, the notes
- * strip under it, and the clock, weather, and Upcoming down the right side,
- * which is the v1.4.0 arrangement, plus a joke strip and a bedtime
- * countdown on the right. The photo and the notes strip stay the same
- * size. Cells never overlap and never leave the grid.
+ * 12 by 8 screen grid. The default gives the clock, weather, and Upcoming
+ * wide boxes so the type can be read from across the room, with the photo
+ * on the left. Cells never overlap and never leave the grid.
  */
 object DashboardGrid {
     const val COLS = 12
@@ -54,6 +52,19 @@ object DashboardGrid {
 
     fun defaultLayout(): Layout {
         return Layout(
+            photo = Cell(0, 0, 6, 4),
+            notes = Cell(0, 7, 6, 1),
+            clock = Cell(6, 0, 6, 3),
+            weather = Cell(6, 3, 6, 3),
+            calendar = Cell(0, 4, 6, 3),
+            bedtime = Cell(6, 6, 6, 1),
+            joke = Cell(6, 7, 6, 1)
+        )
+    }
+
+    /** The v1.5 arrangement. An upgrade replaces this exact layout with [defaultLayout]. */
+    fun v15Layout(): Layout {
+        return Layout(
             photo = Cell(0, 0, 8, 7),
             notes = Cell(0, 7, 8, 1),
             clock = Cell(8, 0, 4, 2),
@@ -62,6 +73,13 @@ object DashboardGrid {
             joke = Cell(8, 5, 4, 1),
             calendar = Cell(8, 6, 4, 2)
         )
+    }
+
+    fun upgrade(layout: Layout): Layout {
+        if (layout == v15Layout()) {
+            return defaultLayout()
+        }
+        return layout
     }
 
     fun fits(layout: Layout): Boolean {

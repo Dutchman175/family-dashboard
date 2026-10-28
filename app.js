@@ -481,7 +481,7 @@
       var dayLow = asNum(lows[i]);
       var dayCode = parseInt(codes[i], 10);
       if (isNaN(dayCode)) dayCode = 3;
-      var name = days[i] === today ? "Today" : weekdayShort(days[i]);
+      var name = weekdayShort(days[i]);
       var col = el("div", "forecast-day");
       col.setAttribute("aria-label", name + ", high " + formatTemp(dayHigh) + ", low " + formatTemp(dayLow) + ", " + describeCode(dayCode));
       col.appendChild(el("div", "slot-name", name));
@@ -1328,13 +1328,13 @@
 
   function defaultBoxes() {
     return {
-      photo: { col: 0, row: 0, cols: 8, rows: 7 },
-      notes: { col: 0, row: 7, cols: 8, rows: 1 },
-      clock: { col: 8, row: 0, cols: 4, rows: 2 },
-      weather: { col: 8, row: 2, cols: 4, rows: 2 },
-      bedtime: { col: 8, row: 4, cols: 4, rows: 1 },
-      joke: { col: 8, row: 5, cols: 4, rows: 1 },
-      calendar: { col: 8, row: 6, cols: 4, rows: 2 }
+      photo: { col: 0, row: 0, cols: 6, rows: 4 },
+      notes: { col: 0, row: 7, cols: 6, rows: 1 },
+      clock: { col: 6, row: 0, cols: 6, rows: 3 },
+      weather: { col: 6, row: 3, cols: 6, rows: 3 },
+      calendar: { col: 0, row: 4, cols: 6, rows: 3 },
+      bedtime: { col: 6, row: 6, cols: 6, rows: 1 },
+      joke: { col: 6, row: 7, cols: 6, rows: 1 }
     };
   }
 
@@ -1377,9 +1377,9 @@
       return {
         photo: photo,
         notes: notes,
-        clock: { col: 0, row: 0, cols: 12, rows: 3 },
-        weather: { col: 0, row: 3, cols: 6, rows: 2 },
-        calendar: { col: 6, row: 3, cols: 6, rows: 2 },
+        clock: { col: 0, row: 0, cols: 12, rows: 2 },
+        weather: { col: 0, row: 2, cols: 6, rows: 3 },
+        calendar: { col: 6, row: 2, cols: 6, rows: 3 },
         joke: { col: 0, row: 5, cols: 12, rows: 1 },
         bedtime: { col: 0, row: 6, cols: 12, rows: 2 }
       };
@@ -1425,8 +1425,8 @@
     var w = clockPanel.clientWidth - 36;
     var h = clockPanel.clientHeight - 18;
     if (w < 40 || h < 40) return;
-    var clockPx = Math.round(Math.max(28, Math.min(w * 0.42, h * 0.5)));
-    var datePx = Math.round(Math.max(14, Math.min(w * 0.075, h * 0.16, clockPx * 0.34)));
+    var clockPx = Math.round(Math.max(64, Math.min(w * 0.36, h * 0.58)));
+    var datePx = Math.round(Math.max(32, Math.min(w * 0.09, h * 0.2, clockPx * 0.34)));
     clockEl.style.fontSize = clockPx + "px";
     if (ampmEl) {
       ampmEl.style.fontSize = Math.round(clockPx * 0.34) + "px";
@@ -1439,7 +1439,7 @@
     }
     var zoneEl = document.getElementById("zone");
     if (zoneEl) {
-      zoneEl.style.fontSize = Math.max(12, Math.round(datePx * 0.72)) + "px";
+      zoneEl.style.fontSize = Math.max(26, Math.round(datePx * 0.78)) + "px";
       zoneEl.style.marginTop = "2px";
     }
   }
@@ -1482,7 +1482,7 @@
     var w = calendarEl.clientWidth;
     var h = calendarEl.clientHeight;
     if (w < 40 || h < 40) return;
-    var px = Math.round(Math.max(16, Math.min(40, w * 0.05, h * 0.075)));
+    var px = Math.round(Math.max(28, Math.min(56, w * 0.058, h * 0.13)));
     calendarEl.style.setProperty("--cal-px", String(px));
     calendarEl.style.setProperty("--cal-line", String(Math.round(px * 1.35)));
     if (lastCalendarSnapshot && lastCalendarSnapshot.configured && calendarEl.className.indexOf("is-on") >= 0) {
@@ -1498,11 +1498,20 @@
     var count = messageListEl ? messageListEl.children.length : 0;
     if (count < 1) count = 1;
     var line = Math.floor(h / count);
-    var maxLine = Math.round(Math.min(64, Math.max(34, w * 0.045)));
-    if (line < 22) line = 22;
+    var maxLine = Math.round(Math.min(96, Math.max(48, w * 0.072)));
+    if (line < 36) line = 36;
     if (line > maxLine) line = maxLine;
+    var px = Math.max(28, Math.round(line * 0.82));
     messagesEl.style.setProperty("--note-line", String(line));
-    messagesEl.style.setProperty("--note-px", String(Math.max(16, Math.round(line * 0.78))));
+    messagesEl.style.setProperty("--note-px", String(px));
+    var guard = 0;
+    while (guard < 20 && px > 26 && messageListEl && messageListEl.scrollHeight > h + 8) {
+      px -= 2;
+      line = Math.max(36, Math.round(px / 0.82));
+      messagesEl.style.setProperty("--note-line", String(line));
+      messagesEl.style.setProperty("--note-px", String(px));
+      guard++;
+    }
   }
 
   function applyLayout() {
@@ -1596,19 +1605,17 @@
     var tiny = h < 150;
     setFlag(panel, "is-tiny", tiny);
     var line = Math.floor(h / (tiny ? 2 : 3));
-    var maxLine = tiny ? 30 : Math.round(Math.min(64, Math.max(28, w * 0.06)));
-    if (line < 18) line = 18;
+    var maxLine = Math.round(Math.min(72, Math.max(36, w * 0.06)));
+    if (line < 28) line = 28;
     if (line > maxLine) line = maxLine;
-    var px = Math.max(16, Math.round(line * 0.86));
+    var px = Math.max(22, Math.round(line * 0.86));
     panel.style.setProperty("--joke-px", String(px));
-    panel.style.setProperty("--joke-line", String(Math.round(px * 1.25)));
+    panel.style.setProperty("--joke-line", String(Math.round(px * 1.2)));
     var guard = 0;
-    while (tiny && guard < 12 && px > 15) {
-      if (jokeSetupEl.scrollWidth <= jokeSetupEl.clientWidth + 1 &&
-          jokePunchEl.scrollWidth <= jokePunchEl.clientWidth + 1) break;
+    while (guard < 18 && px > 20 && panel.scrollHeight > panel.clientHeight + 1) {
       px -= 1;
       panel.style.setProperty("--joke-px", String(px));
-      panel.style.setProperty("--joke-line", String(Math.round(px * 1.25)));
+      panel.style.setProperty("--joke-line", String(Math.round(px * 1.2)));
       guard++;
     }
     if (tiny) {
@@ -1682,9 +1689,9 @@
     var h = panel.clientHeight - 12;
     if (w < 40 || h < 24) return;
     var line = Math.floor(h / count);
-    var px = Math.round(Math.min(w * 0.045, line * 0.55));
-    if (px < 15) px = 15;
-    if (px > 42) px = 42;
+    var px = Math.round(Math.min(w * 0.062, line * 0.78));
+    if (px < 22) px = 22;
+    if (px > 64) px = 64;
     panel.style.setProperty("--bed-px", String(px));
     var guard = 0;
     while (guard < 18 && px > 14) {
@@ -1694,7 +1701,7 @@
         var row = bedtimeListEl.children[r];
         var text = row.children[1];
         if (text && text.scrollWidth > text.clientWidth + 1) fit = false;
-        if (row.scrollWidth > panel.clientWidth - 8) fit = false;
+        if (row.scrollWidth > panel.clientWidth - 20) fit = false;
       }
       if (fit) break;
       px -= 1;

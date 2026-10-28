@@ -51,7 +51,12 @@ class LayoutRepository(context: Context) {
     }
 
     private fun load(): DashboardGrid.Layout {
-        return DashboardGrid.parse(prefs.getString(KEY_LAYOUT, null)) ?: DashboardGrid.defaultLayout()
+        val saved = DashboardGrid.parse(prefs.getString(KEY_LAYOUT, null)) ?: return DashboardGrid.defaultLayout()
+        val upgraded = DashboardGrid.upgrade(saved)
+        if (upgraded != saved) {
+            prefs.edit().putString(KEY_LAYOUT, DashboardGrid.encode(upgraded)).commit()
+        }
+        return upgraded
     }
 
     private fun notifyListeners() {
