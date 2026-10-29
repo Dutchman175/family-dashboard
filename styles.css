@@ -1060,8 +1060,15 @@ p {
   justify-content: center;
 }
 
+.dashboard.is-grid .box-header {
+  font-size: calc(var(--header-px, 36) * 1px);
+  line-height: 1.15;
+  letter-spacing: 0.08em;
+  margin-top: 0;
+  margin-bottom: 8px;
+}
+
 .dashboard.is-grid .panel-calendar .kicker {
-  font-size: calc(var(--cal-px, 26) * 0.85px);
   margin-bottom: calc(var(--cal-px, 26) * 0.35px);
 }
 
@@ -1499,15 +1506,15 @@ p {
   top: 0;
   margin: 0;
   padding-top: 1px;
-  font-size: 81px;
-  line-height: 1.05;
-  letter-spacing: 0;
+  font-size: calc(var(--header-px, 36) / var(--weather-scale, 1) * 1px);
+  line-height: 1.15;
+  letter-spacing: 0.08em;
   white-space: nowrap;
 }
 
 .dashboard.is-grid .panel-weather:not(.is-stack):not(.is-compact) .weather-current,
 .dashboard.is-grid .panel-weather:not(.is-stack):not(.is-compact) .weather-forecast {
-  padding-top: 90px;
+  padding-top: 68px;
 }
 
 .dashboard.is-grid .panel-weather:not(.is-stack):not(.is-compact) .updated {

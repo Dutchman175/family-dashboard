@@ -448,7 +448,7 @@
     clearNode(currentEl);
     clearNode(forecastEl);
 
-    currentEl.appendChild(el("p", "kicker", "Lowell, Indiana"));
+    currentEl.appendChild(el("p", "kicker box-header", "Lowell, Indiana"));
     var main = el("div", "now-main");
     main.appendChild(weatherIcon(iconKind(code, isDaytime(current))));
     main.appendChild(el("p", "temp", formatTemp(temp)));
@@ -1492,6 +1492,12 @@
     if (!(scale > 0)) scale = 1;
     scale = scale * 0.98;
     var transform = "scale(" + scale + ")";
+    panel.style.setProperty("--weather-scale", String(scale));
+    var headerPx = dashEl ? parseFloat(dashEl.style.getPropertyValue("--header-px")) : 0;
+    var place = panel.querySelector(".weather-current > .kicker");
+    if (place && headerPx > 0 && scale > 0 && !panel.className.match(/is-stack|is-compact/)) {
+      place.style.fontSize = (headerPx / scale) + "px";
+    }
     bodyEl.style.width = refW + "px";
     bodyEl.style.height = refH + "px";
     bodyEl.style.webkitTransform = transform;
@@ -1509,6 +1515,9 @@
     if (w < 40 || h < 40) return;
     var px = Math.round(Math.max(25, Math.min(49, w * 0.051, h * 0.114)));
     calendarEl.style.setProperty("--cal-px", String(px));
+    if (dashEl) {
+      dashEl.style.setProperty("--header-px", String(Math.round(px * 0.85 * 1.13)));
+    }
     calendarEl.style.setProperty("--cal-line", String(Math.round(px * 1.35)));
     if (lastCalendarSnapshot && lastCalendarSnapshot.configured && calendarEl.className.indexOf("is-on") >= 0) {
       fillCalendarList(lastCalendarSnapshot);
@@ -1570,8 +1579,8 @@
       setFlag(boxEls[id], "is-resize", layoutEditing && resize && selected === id);
     }
     fitClock();
-    fitWeather();
     fitCalendarSize();
+    fitWeather();
     fitNotes();
     fitJoke();
     fitBedtime();
