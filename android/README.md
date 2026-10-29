@@ -185,7 +185,7 @@ A short press of Select is unchanged. On the photo, it opens seconds per photo. 
 
 ## Joke of the Day
 
-The joke box uses a list of kid-friendly jokes stored in the app. There is no joke website, so it works with the internet off and stays the same clean set. A new joke starts at midnight Central Time, the same clock the dashboard already shows. The dashboard and the screensaver pick the joke from that date, so they always match.
+The joke box uses the same 161 jokes as the Koyah Apps hub, in the same order, stored in the app. It picks the joke with the hub's date function on the device's local clock. A new joke starts at local midnight. On the Fire Stick that clock is Central Time. The dashboard and the screensaver use that same pick, so they match. The list works with the internet off.
 
 ## Bedtime
 

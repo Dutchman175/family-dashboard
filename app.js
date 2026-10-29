@@ -1559,30 +1559,11 @@
   var jokeRevealed = false;
   var jokeRevealTimer = null;
 
-  function jokeDateParts(now) {
-    var iso = chicagoDateISO(now);
-    var bits = String(iso || "").split("-");
-    var y = parseInt(bits[0], 10);
-    var m = parseInt(bits[1], 10);
-    var d = parseInt(bits[2], 10);
-    if (!y || !m || !d) {
-      y = now.getFullYear();
-      m = now.getMonth() + 1;
-      d = now.getDate();
-    }
-    return { y: y, m: m, d: d, key: y + "-" + m + "-" + d };
-  }
-
   function showTodayJoke() {
     var now = new Date();
-    var list = (typeof FAMILY_JOKES !== "undefined" && FAMILY_JOKES && FAMILY_JOKES.length)
-      ? FAMILY_JOKES
-      : [["Why did the joke cross the screen?", "To get to the other side."]];
-    var parts = jokeDateParts(now);
-    var idx = (typeof jokeIndexForLocalDate === "function")
-      ? jokeIndexForLocalDate(parts.y, parts.m, parts.d, list.length)
-      : 0;
-    var key = parts.key + ":" + idx;
+    var joke = (typeof jokeForDate === "function") ? jokeForDate(now) : null;
+    if (!joke) joke = { q: "Why did the joke cross the screen?", a: "To get to the other side." };
+    var key = now.getFullYear() + "-" + (now.getMonth() + 1) + "-" + now.getDate();
     if (key === jokeKey) return;
     jokeKey = key;
     if (jokeRevealTimer) {
@@ -1590,9 +1571,8 @@
       jokeRevealTimer = null;
     }
     jokeRevealed = false;
-    var joke = list[idx] || list[0];
-    if (jokeSetupEl) jokeSetupEl.textContent = joke[0] || "";
-    if (jokePunchEl) jokePunchEl.textContent = joke[1] || "";
+    if (jokeSetupEl) jokeSetupEl.textContent = joke.q || "";
+    if (jokePunchEl) jokePunchEl.textContent = joke.a || "";
     if (typeof applyLayout === "function") applyLayout();
   }
 
