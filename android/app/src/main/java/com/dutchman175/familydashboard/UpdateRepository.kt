@@ -27,6 +27,10 @@ class UpdateRepository(context: Context) {
         fun onUpdate(versionName: String, versionCode: Int, ready: Boolean)
     }
 
+    fun interface ManualCheckListener {
+        fun onStatus(kind: String, versionName: String)
+    }
+
     private val appContext = context.applicationContext
     private val prefs: SharedPreferences =
         appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -38,6 +42,7 @@ class UpdateRepository(context: Context) {
     private val listeners = ArrayList<UpdateListener>()
     private val listenerLock = Any()
     private val started = AtomicBoolean(false)
+    private val manualRunning = AtomicBoolean(false)
 
     @Volatile
     private var readyCode = 0
@@ -84,6 +89,39 @@ class UpdateRepository(context: Context) {
         }
     }
 
+    /**
+     * A settings-screen check. It does not wait for the 6-hour interval or
+     * the screensaver gap, and a dismissed banner for this version can show
+     * again when a newer build is actually downloaded.
+     */
+    fun checkNow(listener: ManualCheckListener) {
+        if (!manualRunning.compareAndSet(false, true)) {
+            return
+        }
+        val installed = installedVersionName()
+        main.post { listener.onStatus("checking", installed) }
+        scheduler.execute {
+            try {
+                manualCheck(listener, installed)
+            } catch (thrown: Exception) {
+                Log.w(TAG, "manual check failed ${thrown.javaClass.simpleName}")
+                main.post { listener.onStatus("error", "") }
+            } finally {
+                manualRunning.set(false)
+            }
+        }
+    }
+
+    fun installedVersionName(): String {
+        return try {
+            val info = packageInfo()
+            val name = info.versionName
+            if (name.isNullOrBlank()) "" else name
+        } catch (thrown: Exception) {
+            ""
+        }
+    }
+
     fun apkFile(): File = File(dir, "pending.apk")
 
     fun dismiss() {
@@ -111,6 +149,40 @@ class UpdateRepository(context: Context) {
     fun removeListener(listener: UpdateListener) {
         synchronized(listenerLock) {
             listeners.remove(listener)
+        }
+    }
+
+    private fun manualCheck(listener: ManualCheckListener, installed: String) {
+        val current = currentVersionCode()
+        val body = try {
+            fetchText(UpdateOffer.VERSION_URL, UpdateOffer.MAX_JSON_BYTES)
+        } catch (thrown: Exception) {
+            Log.w(TAG, "manual version fetch failed ${thrown.javaClass.simpleName}")
+            main.post { listener.onStatus("error", "") }
+            return
+        }
+        when (val outcome = UpdateOffer.parse(body, current)) {
+            UpdateOffer.Outcome.Invalid -> {
+                Log.w(TAG, "manual version file rejected")
+                main.post { listener.onStatus("error", "") }
+            }
+            UpdateOffer.Outcome.Current -> {
+                Log.i(TAG, "manual version current")
+                main.post { listener.onStatus("current", installed) }
+            }
+            is UpdateOffer.Outcome.Newer -> {
+                val offer = outcome.ready
+                main.post { listener.onStatus("downloading", offer.versionName) }
+                prefs.edit().remove(KEY_DISMISS_CODE).remove(KEY_DISMISS_UNTIL).commit()
+                downloadIfNeeded(offer, current)
+                if (readyCode == offer.versionCode) {
+                    lastNotified = ""
+                    notify(ready = true)
+                    main.post { listener.onStatus("ready", offer.versionName) }
+                } else {
+                    main.post { listener.onStatus("error", "") }
+                }
+            }
         }
     }
 
@@ -360,16 +432,18 @@ class UpdateRepository(context: Context) {
         }
     }
 
+    private fun packageInfo() = if (Build.VERSION.SDK_INT >= 33) {
+        appContext.packageManager.getPackageInfo(
+            appContext.packageName,
+            PackageManager.PackageInfoFlags.of(0)
+        )
+    } else {
+        @Suppress("DEPRECATION")
+        appContext.packageManager.getPackageInfo(appContext.packageName, 0)
+    }
+
     private fun currentVersionCode(): Int {
-        val info = if (Build.VERSION.SDK_INT >= 33) {
-            appContext.packageManager.getPackageInfo(
-                appContext.packageName,
-                PackageManager.PackageInfoFlags.of(0)
-            )
-        } else {
-            @Suppress("DEPRECATION")
-            appContext.packageManager.getPackageInfo(appContext.packageName, 0)
-        }
+        val info = packageInfo()
         return if (Build.VERSION.SDK_INT >= 28) {
             info.longVersionCode.toInt()
         } else {

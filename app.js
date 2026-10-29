@@ -1756,7 +1756,7 @@
       return { mode: "Reset to default", help: "Select puts the boxes back. Then Select on Save keeps it. Back saves and leaves." };
     }
     if (selected === "settings") {
-      return { mode: "Settings", help: "Select opens idle and startup options. Back saves and leaves." };
+      return { mode: "Settings", help: "Select opens settings. Check for updates is the bottom line. Back saves and leaves." };
     }
     return {
       mode: "Arrange · " + name,

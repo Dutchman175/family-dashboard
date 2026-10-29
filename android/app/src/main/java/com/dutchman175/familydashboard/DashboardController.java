@@ -75,6 +75,15 @@ final class DashboardController {
         this.errorView = root.findViewById(R.id.error);
         this.retryButton = root.findViewById(R.id.retry);
         this.idlePanel = new IdleSettingsPanel(root);
+        idlePanel.setOnUpdateReady(new Runnable() {
+            @Override
+            public void run() {
+                if (editor.isOpen()) {
+                    layouts.save(editor.commit());
+                    pushLayout();
+                }
+            }
+        });
         this.handler = new Handler(Looper.getMainLooper());
         this.idleClose = new Runnable() {
             @Override
