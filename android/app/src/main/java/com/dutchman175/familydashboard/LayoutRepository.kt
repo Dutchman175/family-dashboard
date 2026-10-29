@@ -51,12 +51,16 @@ class LayoutRepository(context: Context) {
     }
 
     private fun load(): DashboardGrid.Layout {
-        val saved = DashboardGrid.parse(prefs.getString(KEY_LAYOUT, null)) ?: return DashboardGrid.defaultLayout()
-        val upgraded = DashboardGrid.upgrade(saved)
-        if (upgraded != saved) {
-            prefs.edit().putString(KEY_LAYOUT, DashboardGrid.encode(upgraded)).commit()
+        val seen = prefs.getInt(KEY_LAYOUT_VERSION, 0)
+        if (seen < LAYOUT_VERSION) {
+            val layout = DashboardGrid.defaultLayout()
+            prefs.edit()
+                .putString(KEY_LAYOUT, DashboardGrid.encode(layout))
+                .putInt(KEY_LAYOUT_VERSION, LAYOUT_VERSION)
+                .commit()
+            return layout
         }
-        return upgraded
+        return DashboardGrid.parse(prefs.getString(KEY_LAYOUT, null)) ?: DashboardGrid.defaultLayout()
     }
 
     private fun notifyListeners() {
@@ -69,5 +73,9 @@ class LayoutRepository(context: Context) {
     private companion object {
         const val PREFS = "family_dashboard"
         const val KEY_LAYOUT = "dashboard_layout"
+        const val KEY_LAYOUT_VERSION = "dashboard_layout_version"
+
+        /** One-time replace of the saved arrangement, keyed to versionCode 16. */
+        const val LAYOUT_VERSION = 16
     }
 }

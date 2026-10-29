@@ -52,11 +52,11 @@ object DashboardGrid {
 
     fun defaultLayout(): Layout {
         return Layout(
-            photo = Cell(0, 0, 6, 4),
+            clock = Cell(0, 0, 6, 1),
+            photo = Cell(0, 1, 6, 6),
             notes = Cell(0, 7, 6, 1),
-            clock = Cell(6, 0, 6, 3),
+            calendar = Cell(6, 0, 6, 3),
             weather = Cell(6, 3, 6, 3),
-            calendar = Cell(0, 4, 6, 3),
             bedtime = Cell(6, 6, 6, 1),
             joke = Cell(6, 7, 6, 1)
         )
@@ -102,7 +102,10 @@ object DashboardGrid {
             return null
         }
         val cell = layout.cell(id)
-        return accept(layout, id, cell.copy(col = cell.col + dCol, row = cell.row + dRow))
+        val shifted = cell.copy(col = cell.col + dCol, row = cell.row + dRow)
+        accept(layout, id, shifted)?.let { return it }
+        val blocker = primaryBlocker(layout, id, shifted, dCol, dRow) ?: return null
+        return swapWith(layout, id, blocker, dCol, dRow)
     }
 
     fun resize(layout: Layout, id: String, dCols: Int, dRows: Int): Layout? {
@@ -326,6 +329,89 @@ object DashboardGrid {
             cell.row >= 0 &&
             cell.col + cell.cols <= COLS &&
             cell.row + cell.rows <= ROWS
+    }
+
+    private fun primaryBlocker(
+        layout: Layout,
+        id: String,
+        shifted: Cell,
+        dCol: Int,
+        dRow: Int
+    ): String? {
+        var best: String? = null
+        var bestArea = 0
+        var bestScore = Double.NEGATIVE_INFINITY
+        for (other in IDS) {
+            if (other == id) {
+                continue
+            }
+            val cell = layout.cell(other)
+            if (!overlaps(shifted, cell)) {
+                continue
+            }
+            val area = overlapArea(shifted, cell)
+            val score = (cell.col + cell.cols / 2.0) * dCol + (cell.row + cell.rows / 2.0) * dRow
+            if (area > bestArea || (area == bestArea && score > bestScore)) {
+                best = other
+                bestArea = area
+                bestScore = score
+            }
+        }
+        return best
+    }
+
+    /**
+     * The moved box and the blocker exchange order when they share a row or
+     * a column and sit against each other. Otherwise they exchange origins
+     * and keep their own sizes, if that still fits.
+     */
+    private fun swapWith(layout: Layout, movingId: String, otherId: String, dCol: Int, dRow: Int): Layout? {
+        val moving = layout.cell(movingId)
+        val other = layout.cell(otherId)
+        val packed = packSwap(moving, other, dCol, dRow)
+        if (packed != null) {
+            val next = layout.with(movingId, packed.first).with(otherId, packed.second)
+            if (fits(next)) {
+                return next
+            }
+        }
+        val exchanged = layout
+            .with(movingId, moving.copy(col = other.col, row = other.row))
+            .with(otherId, other.copy(col = moving.col, row = moving.row))
+        return if (fits(exchanged)) exchanged else null
+    }
+
+    private fun packSwap(moving: Cell, other: Cell, dCol: Int, dRow: Int): Pair<Cell, Cell>? {
+        if (dRow != 0 && dCol == 0 && moving.col == other.col && moving.cols == other.cols) {
+            val top = minOf(moving.row, other.row)
+            val bottom = maxOf(moving.row + moving.rows, other.row + other.rows)
+            if (bottom - top != moving.rows + other.rows) {
+                return null
+            }
+            val movedRow = if (dRow > 0) top + other.rows else top
+            val otherRow = if (dRow > 0) top else top + moving.rows
+            return moving.copy(row = movedRow) to other.copy(row = otherRow)
+        }
+        if (dCol != 0 && dRow == 0 && moving.row == other.row && moving.rows == other.rows) {
+            val left = minOf(moving.col, other.col)
+            val right = maxOf(moving.col + moving.cols, other.col + other.cols)
+            if (right - left != moving.cols + other.cols) {
+                return null
+            }
+            val movedCol = if (dCol > 0) left + other.cols else left
+            val otherCol = if (dCol > 0) left else left + moving.cols
+            return moving.copy(col = movedCol) to other.copy(col = otherCol)
+        }
+        return null
+    }
+
+    private fun overlapArea(a: Cell, b: Cell): Int {
+        val cols = minOf(a.col + a.cols, b.col + b.cols) - maxOf(a.col, b.col)
+        val rows = minOf(a.row + a.rows, b.row + b.rows) - maxOf(a.row, b.row)
+        if (cols <= 0 || rows <= 0) {
+            return 0
+        }
+        return cols * rows
     }
 
     private fun overlaps(a: Cell, b: Cell): Boolean {

@@ -21,6 +21,12 @@ final class RemoteKeys {
         return code == KeyEvent.KEYCODE_MENU;
     }
 
+    static boolean isPlayPause(int code) {
+        return code == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE
+                || code == KeyEvent.KEYCODE_MEDIA_PLAY
+                || code == KeyEvent.KEYCODE_MEDIA_PAUSE;
+    }
+
     static boolean isPreviousMonth(int code) {
         return code == KeyEvent.KEYCODE_DPAD_LEFT
                 || code == KeyEvent.KEYCODE_MEDIA_REWIND

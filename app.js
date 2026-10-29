@@ -1328,11 +1328,11 @@
 
   function defaultBoxes() {
     return {
-      photo: { col: 0, row: 0, cols: 6, rows: 4 },
+      clock: { col: 0, row: 0, cols: 6, rows: 1 },
+      photo: { col: 0, row: 1, cols: 6, rows: 6 },
       notes: { col: 0, row: 7, cols: 6, rows: 1 },
-      clock: { col: 6, row: 0, cols: 6, rows: 3 },
+      calendar: { col: 6, row: 0, cols: 6, rows: 3 },
       weather: { col: 6, row: 3, cols: 6, rows: 3 },
-      calendar: { col: 0, row: 4, cols: 6, rows: 3 },
       bedtime: { col: 6, row: 6, cols: 6, rows: 1 },
       joke: { col: 6, row: 7, cols: 6, rows: 1 }
     };
@@ -1425,22 +1425,47 @@
     var w = clockPanel.clientWidth - 36;
     var h = clockPanel.clientHeight - 18;
     if (w < 40 || h < 40) return;
-    var clockPx = Math.round(Math.max(64, Math.min(w * 0.36, h * 0.58)));
-    var datePx = Math.round(Math.max(32, Math.min(w * 0.09, h * 0.2, clockPx * 0.34)));
+    var inline = h < 150;
+    setFlag(clockPanel, "is-inline", inline);
+    var clockPx;
+    var datePx;
+    if (inline) {
+      clockPx = Math.round(Math.min(w * 0.2, (h + 10) * 0.78) * 0.88);
+      datePx = Math.round(Math.max(24, clockPx * 0.58));
+    } else {
+      clockPx = Math.round(Math.min(w * 0.36, h * 0.58) * 0.88);
+      datePx = Math.round(Math.min(w * 0.09, h * 0.2, clockPx * 0.5) * 0.88);
+    }
+    if (clockPx < 34) clockPx = 34;
+    if (datePx < 22) datePx = 22;
+    clockPanel.style.display = inline ? "flex" : "block";
+    applyClockType(clockPx, datePx, inline);
+    var guard = 0;
+    while (inline && guard < 16 && clockPanel.scrollWidth > clockPanel.clientWidth + 1 && clockPx > 32) {
+      clockPx -= 2;
+      datePx = Math.max(20, Math.round(clockPx * 0.55));
+      applyClockType(clockPx, datePx, true);
+      guard++;
+    }
+  }
+
+  function applyClockType(clockPx, datePx, inline) {
     clockEl.style.fontSize = clockPx + "px";
     if (ampmEl) {
-      ampmEl.style.fontSize = Math.round(clockPx * 0.34) + "px";
-      ampmEl.style.marginTop = Math.round(clockPx * 0.12) + "px";
+      ampmEl.style.fontSize = Math.round(clockPx * 0.42) + "px";
+      ampmEl.style.marginTop = inline ? "0" : Math.round(clockPx * 0.12) + "px";
       ampmEl.style.marginLeft = Math.round(clockPx * 0.08) + "px";
     }
     if (dateEl) {
       dateEl.style.fontSize = datePx + "px";
-      dateEl.style.marginTop = "2px";
+      dateEl.style.marginTop = inline ? "0" : "2px";
+      dateEl.style.marginLeft = inline ? "28px" : "0";
     }
     var zoneEl = document.getElementById("zone");
     if (zoneEl) {
-      zoneEl.style.fontSize = Math.max(26, Math.round(datePx * 0.78)) + "px";
-      zoneEl.style.marginTop = "2px";
+      zoneEl.style.fontSize = Math.max(18, Math.round(datePx * 0.78)) + "px";
+      zoneEl.style.marginTop = inline ? "0" : "2px";
+      zoneEl.style.marginLeft = inline ? "22px" : "0";
     }
   }
 
@@ -1482,7 +1507,7 @@
     var w = calendarEl.clientWidth;
     var h = calendarEl.clientHeight;
     if (w < 40 || h < 40) return;
-    var px = Math.round(Math.max(28, Math.min(56, w * 0.058, h * 0.13)));
+    var px = Math.round(Math.max(25, Math.min(49, w * 0.051, h * 0.114)));
     calendarEl.style.setProperty("--cal-px", String(px));
     calendarEl.style.setProperty("--cal-line", String(Math.round(px * 1.35)));
     if (lastCalendarSnapshot && lastCalendarSnapshot.configured && calendarEl.className.indexOf("is-on") >= 0) {
@@ -1712,30 +1737,30 @@
     if (layoutState.grabbed && layoutState.mode === "resize") {
       return {
         mode: name + " · Resize",
-        help: "Left and right change the width. Up and down change the height. OK switches to Move. Back puts the box down."
+        help: "Left and right change the width. Up and down change the height. Select switches to Move. Back puts the box down. Play/Pause saves."
       };
     }
     if (layoutState.grabbed) {
       return {
         mode: name + " · Move",
-        help: "Arrows slide it one square. It stops at the edge and will not cover another box. OK switches to Resize. Back puts it down."
+        help: "Arrows slide it. Moving into another box swaps them. Select switches to Resize. Back puts it down. Play/Pause saves."
       };
     }
     if (selected === "save") {
-      return { mode: "Save", help: "OK keeps this arrangement on the TV." };
+      return { mode: "Save", help: "Select or Play/Pause saves and leaves. Back saves and leaves." };
     }
     if (selected === "cancel") {
-      return { mode: "Cancel", help: "OK throws away these changes." };
+      return { mode: "Cancel", help: "Select throws the changes away. Back saves and leaves." };
     }
     if (selected === "reset") {
-      return { mode: "Reset to default", help: "OK puts the boxes back to the original layout. Save keeps it." };
+      return { mode: "Reset to default", help: "Select puts the boxes back. Then Select on Save keeps it. Back saves and leaves." };
     }
     if (selected === "settings") {
-      return { mode: "Settings", help: "OK opens idle and startup options. Back returns to the boxes." };
+      return { mode: "Settings", help: "Select opens idle and startup options. Back saves and leaves." };
     }
     return {
       mode: "Arrange · " + name,
-      help: "Arrows choose a box. OK picks it up. Down from the bottom box reaches Save, Cancel, Reset, and Settings. Back leaves without saving."
+      help: "Arrows choose a box. Select picks it up. Back or Menu moves to Save. Play/Pause saves and leaves."
     };
   }
 
@@ -1755,7 +1780,7 @@
       layoutBar.style.marginLeft = "";
       return;
     }
-    var barW = 780;
+    var barW = 1080;
     var margin = 24;
     var anchor = layoutBarAnchor ? cellRect(layoutBarAnchor) : null;
     var left = margin;

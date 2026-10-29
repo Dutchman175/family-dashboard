@@ -173,6 +173,10 @@ final class DashboardController {
         handler.removeCallbacks(idleClose);
         handler.removeCallbacks(okLongRunnable);
         okHeld = false;
+        if (editor.isOpen()) {
+            layouts.save(editor.commit());
+            pushLayout();
+        }
         webView.onPause();
     }
 
@@ -406,7 +410,11 @@ final class DashboardController {
                 okHeld = false;
                 okLongFired = false;
                 handler.removeCallbacks(okLongRunnable);
-                openEditor();
+                if (editor.isOpen()) {
+                    applyEditorResult(editor.menu());
+                } else {
+                    openEditor();
+                }
             }
             return true;
         }
@@ -573,16 +581,22 @@ final class DashboardController {
 
     private boolean handleEditorBack() {
         if (editor.isOpen()) {
-            editor.back();
-            pushLayout();
-            if (!editor.isOpen()) {
-                suppressFinishBack = true;
-                handler.removeCallbacks(clearSuppressBack);
-                handler.postDelayed(clearSuppressBack, 400);
-            }
+            applyEditorResult(editor.back());
             return true;
         }
         return suppressFinishBack;
+    }
+
+    private void applyEditorResult(String result) {
+        if ("save".equals(result)) {
+            layouts.save(editor.commit());
+        }
+        pushLayout();
+        if (!editor.isOpen()) {
+            suppressFinishBack = true;
+            handler.removeCallbacks(clearSuppressBack);
+            handler.postDelayed(clearSuppressBack, 400);
+        }
     }
 
     private boolean handleEditorDown(int code) {
@@ -603,6 +617,8 @@ final class DashboardController {
             } else if ("settings".equals(result)) {
                 idlePanel.show();
             }
+        } else if (RemoteKeys.isPlayPause(code)) {
+            layouts.save(editor.commit());
         } else {
             return false;
         }

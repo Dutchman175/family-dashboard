@@ -1,8 +1,9 @@
 package com.dutchman175.familydashboard
 
 /**
- * Remote controls for arranging boxes. Arrows choose a box, OK picks it up,
- * OK again switches Move and Resize, and Back puts the box down.
+ * Remote controls for arranging boxes. Arrows choose a box, Select picks it
+ * up, Select again switches Move and Resize, and Back puts the box down.
+ * Back or Menu from a highlighted box moves to Save. Play/Pause saves.
  */
 class LayoutEditor(initial: DashboardGrid.Layout) {
     private var saved: DashboardGrid.Layout = initial
@@ -94,7 +95,10 @@ class LayoutEditor(initial: DashboardGrid.Layout) {
     }
 
     /**
-     * @return drop while a box is held, cancel when the editor closes, or none
+     * Back drops a held box. From a highlighted box it moves to Save.
+     * From Save, Cancel, Reset, or Settings it asks the caller to save and leave.
+     *
+     * @return drop, focus-save, save, or none
      */
     fun back(): String {
         if (!open) {
@@ -105,8 +109,43 @@ class LayoutEditor(initial: DashboardGrid.Layout) {
             mode = "move"
             return "drop"
         }
-        cancel()
-        return "cancel"
+        if (DashboardGrid.IDS.contains(selected)) {
+            returnBox = selected
+            selected = "save"
+            return "focus-save"
+        }
+        return "save"
+    }
+
+    /**
+     * Menu drops a held box and moves to Save. From the action row it saves.
+     *
+     * @return focus-save, save, or none
+     */
+    fun menu(): String {
+        if (!open) {
+            return "none"
+        }
+        if (grabbed) {
+            grabbed = false
+            mode = "move"
+        }
+        if (DashboardGrid.IDS.contains(selected)) {
+            returnBox = selected
+            selected = "save"
+            return "focus-save"
+        }
+        return "save"
+    }
+
+    /** Play/Pause saves and leaves from every arrange state. */
+    fun play(): String {
+        if (!open) {
+            return "none"
+        }
+        grabbed = false
+        mode = "move"
+        return "save"
     }
 
     fun stateJson(): String {
