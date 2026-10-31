@@ -4,7 +4,7 @@
    Hours are 0-23 in America/Chicago. */
 var BEDTIME_CONFIG = {
   zone: "America/Chicago",
-  countdownMinutes: 180,
+  countdownMinutes: 360,
   soonMinutes: 15,
   holdMinutes: 60,
   kids: [
@@ -90,15 +90,17 @@ function bedtimeClock(hour, minute) {
   return h + ":" + mm + " " + (hour < 12 ? "AM" : "PM");
 }
 
+function bedtimePad(n) {
+  return n < 10 ? "0" + n : String(n);
+}
+
 function bedtimeCountdown(totalSeconds) {
   var secs = totalSeconds;
   if (secs < 1) secs = 1;
   var h = Math.floor(secs / 3600);
   var m = Math.floor((secs % 3600) / 60);
   var s = secs % 60;
-  if (h > 0) return "Bedtime in " + h + "h " + m + "m " + s + "s";
-  if (m > 0) return "Bedtime in " + m + "m " + s + "s";
-  return "Bedtime in " + s + "s";
+  return h + ":" + bedtimePad(m) + ":" + bedtimePad(s);
 }
 
 function bedtimeRows(now, config) {

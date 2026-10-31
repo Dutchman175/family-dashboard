@@ -11,8 +11,8 @@ android {
         applicationId "com.dutchman175.familydashboard"
         minSdk 22
         targetSdk 34
-        versionCode 18
-        versionName "1.6.4"
+        versionCode 19
+        versionName "1.6.5"
     }
 
     compileOptions {
