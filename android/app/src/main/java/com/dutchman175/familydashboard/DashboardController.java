@@ -36,6 +36,7 @@ final class DashboardController {
             "https://appassets.androidplatform.net/assets/dashboard";
     private static final long RETRY_MS = 15000L;
     private static final long MONTH_IDLE_MS = 120000L;
+    private static final long OK_LONG_MS = 600L;
 
     private final WebView webView;
     private final View errorView;
@@ -50,11 +51,21 @@ final class DashboardController {
     private final PhotoAlbumRepository.PlaylistListener playlistListener;
     private final MessageRepository messages;
     private final MessageRepository.MessageListener messageListener;
+    private final LayoutRepository layouts;
+    private final LayoutEditor editor;
+    private final LayoutRepository.LayoutListener layoutListener;
+    private boolean okHeld;
+    private boolean okLongFired;
+    private boolean suppressFinishBack;
+    private boolean editorBackFromKey;
+    private final Runnable okLongRunnable;
+    private final Runnable clearSuppressBack;
 
     private boolean destroyed;
     private boolean loadFailed;
     private boolean monthOpen;
     private boolean settingsOpen;
+    private final IdleSettingsPanel idlePanel;
     private String focusTarget = "";
     private final Runnable idleClose;
 
@@ -63,6 +74,16 @@ final class DashboardController {
         this.webView = root.findViewById(R.id.web);
         this.errorView = root.findViewById(R.id.error);
         this.retryButton = root.findViewById(R.id.retry);
+        this.idlePanel = new IdleSettingsPanel(root);
+        idlePanel.setOnUpdateReady(new Runnable() {
+            @Override
+            public void run() {
+                if (editor.isOpen()) {
+                    layouts.save(editor.commit());
+                    pushLayout();
+                }
+            }
+        });
         this.handler = new Handler(Looper.getMainLooper());
         this.idleClose = new Runnable() {
             @Override
@@ -107,6 +128,33 @@ final class DashboardController {
                 pushMessages(json);
             }
         };
+        this.layouts = app.getLayouts();
+        this.editor = new LayoutEditor(layouts.getCurrent());
+        this.okLongRunnable = new Runnable() {
+            @Override
+            public void run() {
+                if (!okHeld || destroyed || editor.isOpen() || settingsOpen || monthOpen) {
+                    return;
+                }
+                okLongFired = true;
+                openEditor();
+            }
+        };
+        this.clearSuppressBack = new Runnable() {
+            @Override
+            public void run() {
+                suppressFinishBack = false;
+            }
+        };
+        this.layoutListener = new LayoutRepository.LayoutListener() {
+            @Override
+            public void onLayout() {
+                if (!editor.isOpen()) {
+                    editor.replaceSaved(layouts.getCurrent());
+                }
+                pushLayout();
+            }
+        };
         if (!interactive) {
             retryButton.setVisibility(View.GONE);
         } else {
@@ -125,12 +173,19 @@ final class DashboardController {
         calendar.requestRefresh();
         photos.addListener(playlistListener);
         messages.addListener(messageListener);
+        layouts.addListener(layoutListener);
         load();
     }
 
     void pause() {
         handler.removeCallbacks(retryRunnable);
         handler.removeCallbacks(idleClose);
+        handler.removeCallbacks(okLongRunnable);
+        okHeld = false;
+        if (editor.isOpen()) {
+            layouts.save(editor.commit());
+            pushLayout();
+        }
         webView.onPause();
     }
 
@@ -148,14 +203,18 @@ final class DashboardController {
         destroyed = true;
         handler.removeCallbacks(retryRunnable);
         handler.removeCallbacks(idleClose);
+        handler.removeCallbacks(okLongRunnable);
+        handler.removeCallbacks(clearSuppressBack);
         calendar.removeListener(snapshotListener);
         photos.removeListener(playlistListener);
         messages.removeListener(messageListener);
+        layouts.removeListener(layoutListener);
         webView.setWebViewClient(null);
         webView.stopLoading();
         webView.removeJavascriptInterface("FamilyCalendar");
         webView.removeJavascriptInterface("FamilyPhotos");
         webView.removeJavascriptInterface("FamilyMessages");
+        webView.removeJavascriptInterface("FamilyLayout");
         ViewParent parent = webView.getParent();
         if (parent instanceof ViewGroup) {
             ((ViewGroup) parent).removeView(webView);
@@ -206,6 +265,7 @@ final class DashboardController {
         webView.addJavascriptInterface(new CalendarBridge(calendar), "FamilyCalendar");
         webView.addJavascriptInterface(new PhotoBridge(photos), "FamilyPhotos");
         webView.addJavascriptInterface(new MessageBridge(messages), "FamilyMessages");
+        webView.addJavascriptInterface(new LayoutBridge(editor), "FamilyLayout");
         if (Build.VERSION.SDK_INT >= 23) {
             webView.setWebViewClient(new ModernClient());
         } else {
@@ -226,6 +286,7 @@ final class DashboardController {
                 pushSnapshot(calendar.snapshotJson());
                 pushPlaylist(photos.playlistJson());
                 pushMessages(messages.snapshotJson());
+                pushLayout();
                 pushTvState();
             }
         }
@@ -325,6 +386,18 @@ final class DashboardController {
     }
 
     /**
+     * True while a panel already owns the remote, so an update banner does
+     * not take OK away from it.
+     */
+    boolean modalOpen() {
+        return editor.isOpen()
+                || settingsOpen
+                || monthOpen
+                || idlePanel.isOpen()
+                || errorView.getVisibility() == View.VISIBLE;
+    }
+
+    /**
      * TV remote keys for the launcher only. The screensaver constructs this
      * controller with interactive false and never receives input.
      */
@@ -332,12 +405,39 @@ final class DashboardController {
         if (!interactive || event == null || destroyed) {
             return false;
         }
+        if (idlePanel.isOpen()) {
+            idlePanel.handleKey(event);
+            return true;
+        }
         if (errorView.getVisibility() == View.VISIBLE) {
             return false;
         }
         int action = event.getAction();
         int code = event.getKeyCode();
+        if (RemoteKeys.isMenu(code)) {
+            if (action == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
+                okHeld = false;
+                okLongFired = false;
+                handler.removeCallbacks(okLongRunnable);
+                if (editor.isOpen()) {
+                    applyEditorResult(editor.menu());
+                } else {
+                    openEditor();
+                }
+            }
+            return true;
+        }
         if (code == KeyEvent.KEYCODE_BACK) {
+            if (editor.isOpen() || suppressFinishBack || editorBackFromKey) {
+                if (action == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
+                    editorBackFromKey = true;
+                    handleEditorBack();
+                }
+                if (action == KeyEvent.ACTION_UP) {
+                    editorBackFromKey = false;
+                }
+                return true;
+            }
             if (settingsOpen) {
                 if (action == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
                     closeSettings();
@@ -351,6 +451,35 @@ final class DashboardController {
                 closeMonth();
             }
             return true;
+        }
+        if (editor.isOpen()) {
+            if (action != KeyEvent.ACTION_DOWN) {
+                return isDpad(code) || isOk(code);
+            }
+            if (event.getRepeatCount() > 0 && !isDpad(code)) {
+                return true;
+            }
+            return handleEditorDown(code);
+        }
+        if (isOk(code) && !settingsOpen && !monthOpen) {
+            if (action == KeyEvent.ACTION_DOWN) {
+                if (event.getRepeatCount() == 0) {
+                    okHeld = true;
+                    okLongFired = false;
+                    handler.removeCallbacks(okLongRunnable);
+                    handler.postDelayed(okLongRunnable, OK_LONG_MS);
+                }
+                return true;
+            }
+            if (action == KeyEvent.ACTION_UP) {
+                okHeld = false;
+                handler.removeCallbacks(okLongRunnable);
+                if (!okLongFired) {
+                    doShortOk();
+                }
+                okLongFired = false;
+                return true;
+            }
         }
         if (action != KeyEvent.ACTION_DOWN) {
             return false;
@@ -379,11 +508,11 @@ final class DashboardController {
         }
         if (monthOpen) {
             resetIdle();
-            if (isPreviousMonth(code)) {
+            if (RemoteKeys.isPreviousMonth(code)) {
                 injectKey("prev");
                 return true;
             }
-            if (isNextMonth(code)) {
+            if (RemoteKeys.isNextMonth(code)) {
                 injectKey("next");
                 return true;
             }
@@ -396,15 +525,8 @@ final class DashboardController {
             return false;
         }
         if (isOk(code)) {
-            if ("photo".equals(focusTarget)) {
-                openSettings();
-                return true;
-            }
-            if ("calendar".equals(focusTarget)) {
-                openMonth();
-                return true;
-            }
-            return false;
+            doShortOk();
+            return true;
         }
         if (isDpad(code)) {
             moveFocus(code);
@@ -417,6 +539,17 @@ final class DashboardController {
         if (!interactive) {
             return false;
         }
+        if (idlePanel.isOpen()) {
+            idlePanel.hide();
+            return true;
+        }
+        if (editorBackFromKey) {
+            editorBackFromKey = false;
+            return true;
+        }
+        if (handleEditorBack()) {
+            return true;
+        }
         if (settingsOpen) {
             closeSettings();
             return true;
@@ -426,6 +559,101 @@ final class DashboardController {
         }
         closeMonth();
         return true;
+    }
+
+    private void doShortOk() {
+        if (editor.isOpen() || settingsOpen || monthOpen) {
+            return;
+        }
+        if ("photo".equals(focusTarget)) {
+            openSettings();
+            return;
+        }
+        if ("calendar".equals(focusTarget)) {
+            openMonth();
+        }
+    }
+
+    private void openEditor() {
+        if (!interactive || editor.isOpen()) {
+            return;
+        }
+        if (settingsOpen) {
+            closeSettings();
+        }
+        if (monthOpen) {
+            closeMonth();
+        }
+        editor.open(focusTarget);
+        pushLayout();
+    }
+
+    private boolean handleEditorBack() {
+        if (editor.isOpen()) {
+            applyEditorResult(editor.back());
+            return true;
+        }
+        return suppressFinishBack;
+    }
+
+    private void applyEditorResult(String result) {
+        if ("save".equals(result)) {
+            layouts.save(editor.commit());
+        }
+        pushLayout();
+        if (!editor.isOpen()) {
+            suppressFinishBack = true;
+            handler.removeCallbacks(clearSuppressBack);
+            handler.postDelayed(clearSuppressBack, 400);
+        }
+    }
+
+    private boolean handleEditorDown(int code) {
+        if (code == KeyEvent.KEYCODE_DPAD_LEFT) {
+            editor.left();
+        } else if (code == KeyEvent.KEYCODE_DPAD_RIGHT) {
+            editor.right();
+        } else if (code == KeyEvent.KEYCODE_DPAD_UP) {
+            editor.up();
+        } else if (code == KeyEvent.KEYCODE_DPAD_DOWN) {
+            editor.down();
+        } else if (isOk(code)) {
+            String result = editor.ok();
+            if ("save".equals(result)) {
+                layouts.save(editor.commit());
+            } else if ("cancel".equals(result)) {
+                editor.cancel();
+            } else if ("settings".equals(result)) {
+                idlePanel.show();
+            }
+        } else if (RemoteKeys.isPlayPause(code)) {
+            layouts.save(editor.commit());
+        } else {
+            return false;
+        }
+        pushLayout();
+        return true;
+    }
+
+    private void pushLayout() {
+        final String json = editor.stateJson();
+        if (destroyed || json == null || json.length() == 0 || json.charAt(0) != '{') {
+            return;
+        }
+        if (json.indexOf('\n') >= 0 || json.indexOf('<') >= 0) {
+            return;
+        }
+        handler.post(new Runnable() {
+            @Override
+            public void run() {
+                if (destroyed) {
+                    return;
+                }
+                webView.evaluateJavascript(
+                        "window.onLayoutState&&window.onLayoutState(" + json + ")",
+                        null);
+            }
+        });
     }
 
     private void moveFocus(int code) {
@@ -566,7 +794,7 @@ final class DashboardController {
                 if (destroyed) {
                     return;
                 }
-                StringBuilder cmd = new StringBuilder("window.__tvKeys=true;");
+                StringBuilder cmd = new StringBuilder("window.__tvKeys=true;window.showArrangeHint&&window.showArrangeHint();");
                 if ("photo".equals(focusTarget)) {
                     cmd.append("window.onDashKey&&window.onDashKey('focus-photo');");
                 } else if ("calendar".equals(focusTarget)) {
@@ -591,19 +819,7 @@ final class DashboardController {
     }
 
     private static boolean isOk(int code) {
-        return code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER;
-    }
-
-    private static boolean isPreviousMonth(int code) {
-        return code == KeyEvent.KEYCODE_DPAD_LEFT
-                || code == KeyEvent.KEYCODE_CHANNEL_DOWN
-                || code == KeyEvent.KEYCODE_PAGE_UP;
-    }
-
-    private static boolean isNextMonth(int code) {
-        return code == KeyEvent.KEYCODE_DPAD_RIGHT
-                || code == KeyEvent.KEYCODE_CHANNEL_UP
-                || code == KeyEvent.KEYCODE_PAGE_DOWN;
+        return RemoteKeys.isOk(code);
     }
 
     private void pushSnapshot(final String json) {

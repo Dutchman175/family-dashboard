@@ -1,19 +1,22 @@
 package com.dutchman175.familydashboard
 
 import org.json.JSONObject
+import java.time.Instant
+import java.time.ZoneId
 
 /**
- * Pure message rules: parse one ntfy JSON line, drop anything older than 24
- * hours, and build the WebView snapshot. The topic name is never read and
- * never written into the snapshot.
+ * Pure message rules: parse one ntfy JSON line, keep only notes posted since
+ * the most recent America/Chicago midnight, and build the WebView snapshot.
+ * ZoneId handles daylight saving. The topic name is never read and never
+ * written into the snapshot.
  */
 internal object MessageBoard {
-    const val TTL_MS = 24L * 60 * 60 * 1000
     const val MAX_TEXT = 200
     const val MAX_SENDER = 40
     const val MAX_STORED = 40
     const val MAX_SHOWN = 3
     private const val PULSE_WINDOW_MS = 45_000L
+    private val CHICAGO: ZoneId = ZoneId.of("America/Chicago")
     private val SAFE_ID = Regex("^[A-Za-z0-9_-]{1,64}$")
 
     internal data class Note(
@@ -30,8 +33,30 @@ internal object MessageBoard {
         val cleared: Boolean
     )
 
-    fun endpoint(topic: String): String {
-        return "https://ntfy.sh/$topic/json?since=24h"
+    /** Start of the Chicago civil day that contains [nowMillis]. */
+    fun midnightMillis(nowMillis: Long): Long {
+        return Instant.ofEpochMilli(nowMillis)
+            .atZone(CHICAGO)
+            .toLocalDate()
+            .atStartOfDay(CHICAGO)
+            .toInstant()
+            .toEpochMilli()
+    }
+
+    /** The following Chicago midnight, strictly after [nowMillis]. */
+    fun nextMidnightMillis(nowMillis: Long): Long {
+        return Instant.ofEpochMilli(nowMillis)
+            .atZone(CHICAGO)
+            .toLocalDate()
+            .plusDays(1)
+            .atStartOfDay(CHICAGO)
+            .toInstant()
+            .toEpochMilli()
+    }
+
+    fun endpoint(topic: String, nowMillis: Long): String {
+        val sinceSec = midnightMillis(nowMillis) / 1000L
+        return "https://ntfy.sh/$topic/json?since=$sinceSec"
     }
 
     fun ingest(existing: List<Note>, line: String, nowMillis: Long): Ingest {
@@ -47,6 +72,9 @@ internal object MessageBoard {
             return unchanged(existing)
         }
         val rawText = obj.optString("message", "")
+        if (ControlCommand.interpret(rawText) !is ControlCommand.Parsed.NotCommand) {
+            return unchanged(existing)
+        }
         if (rawText.trim() == "clear") {
             val had = existing.isNotEmpty()
             return Ingest(emptyList(), changed = had, pulse = false, cleared = true)
@@ -58,7 +86,7 @@ internal object MessageBoard {
         val senderPlain = plain(obj.optString("title", ""), MAX_SENDER)
         val sender = if (senderPlain.isEmpty()) "Family" else senderPlain
         val at = messageTime(obj.optLong("time", 0L), nowMillis)
-        if (nowMillis - at >= TTL_MS) {
+        if (at < midnightMillis(nowMillis)) {
             return unchanged(existing)
         }
         val id = safeId(obj.optString("id", ""), at, text)
@@ -73,8 +101,37 @@ internal object MessageBoard {
         return Ingest(next, changed = true, pulse = pulse, cleared = false)
     }
 
+    /**
+     * A `#cfg` note is a setting, not a message. Anything that starts with
+     * that prefix is kept off the board, including a command this app rejects.
+     */
+    fun control(line: String, nowMillis: Long): ControlCommand.Parsed {
+        val obj = try {
+            JSONObject(line)
+        } catch (thrown: Exception) {
+            return ControlCommand.Parsed.NotCommand
+        }
+        if (obj.optString("event") != "message") {
+            return ControlCommand.Parsed.NotCommand
+        }
+        if (!obj.has("message") || obj.isNull("message")) {
+            return ControlCommand.Parsed.NotCommand
+        }
+        val rawText = obj.optString("message", "")
+        return when (val parsed = ControlCommand.interpret(rawText)) {
+            ControlCommand.Parsed.NotCommand -> ControlCommand.Parsed.NotCommand
+            ControlCommand.Parsed.Ignore -> ControlCommand.Parsed.Ignore
+            is ControlCommand.Parsed.Apply -> {
+                val at = messageTime(obj.optLong("time", 0L), nowMillis)
+                val id = safeId(obj.optString("id", ""), at, rawText.trim())
+                parsed.copy(id = id)
+            }
+        }
+    }
+
     fun expire(messages: List<Note>, nowMillis: Long): List<Note> {
-        return messages.filter { nowMillis - it.atMillis < TTL_MS }
+        val start = midnightMillis(nowMillis)
+        return messages.filter { it.atMillis >= start }
     }
 
     fun toJson(configured: Boolean, messages: List<Note>, pulse: Boolean): String {

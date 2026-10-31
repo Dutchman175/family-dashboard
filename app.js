@@ -41,7 +41,8 @@
     dashEl.style.top = y + "px";
     dashEl.style.webkitTransform = transform;
     dashEl.style.transform = transform;
-    fitCalendar();
+    if (typeof applyLayout === "function") applyLayout();
+    else fitCalendar();
   }
 
   function renderZonedClock(now) {
@@ -110,6 +111,9 @@
       shown = false;
     }
     if (!shown) renderLocalClock(now);
+    if (typeof showTodayJoke === "function") showTodayJoke();
+    if (typeof renderBedtime === "function") renderBedtime(now);
+    refreshMessagesForDay();
   }
 
   function chicagoDateISO(now) {
@@ -444,7 +448,7 @@
     clearNode(currentEl);
     clearNode(forecastEl);
 
-    currentEl.appendChild(el("p", "kicker", "Lowell, Indiana"));
+    currentEl.appendChild(el("p", "kicker box-header", "Lowell, Indiana"));
     var main = el("div", "now-main");
     main.appendChild(weatherIcon(iconKind(code, isDaytime(current))));
     main.appendChild(el("p", "temp", formatTemp(temp)));
@@ -477,7 +481,7 @@
       var dayLow = asNum(lows[i]);
       var dayCode = parseInt(codes[i], 10);
       if (isNaN(dayCode)) dayCode = 3;
-      var name = days[i] === today ? "Today" : weekdayShort(days[i]);
+      var name = weekdayShort(days[i]);
       var col = el("div", "forecast-day");
       col.setAttribute("aria-label", name + ", high " + formatTemp(dayHigh) + ", low " + formatTemp(dayLow) + ", " + describeCode(dayCode));
       col.appendChild(el("div", "slot-name", name));
@@ -557,32 +561,12 @@
       calendarNoteEl.textContent = "";
       syncCalendarTarget();
       if (monthOpen) closeMonthView();
+      if (typeof applyLayout === "function") applyLayout();
       return;
     }
     var focused = calendarEl.className.indexOf("is-focused") >= 0;
     calendarEl.className = focused ? "panel panel-calendar is-on is-focused" : "panel panel-calendar is-on";
-    clearNode(calendarListEl);
-    var events = snapshot.events || [];
-    if (!events.length) {
-      var empty = snapshot.loading ? "Loading calendar" : (snapshot.stale ? "" : "Nothing coming up");
-      if (empty) calendarListEl.appendChild(el("p", "calendar-empty", empty));
-    } else {
-      var lastHeading = "";
-      var i;
-      for (i = 0; i < events.length; i++) {
-        var ev = events[i];
-        if (!ev) continue;
-        var heading = ev.heading || "";
-        if (heading !== lastHeading) {
-          calendarListEl.appendChild(el("p", "calendar-day", heading));
-          lastHeading = heading;
-        }
-        var row = el("div", "calendar-row");
-        row.appendChild(el("p", "calendar-time", ev.time || (ev.allDay ? "All day" : "")));
-        row.appendChild(el("p", "calendar-title", ev.title || "Busy"));
-        calendarListEl.appendChild(row);
-      }
-    }
+    fillCalendarList(snapshot);
     if (snapshot.stale) {
       calendarNoteEl.textContent = "Calendar not updated";
       calendarNoteEl.className = "calendar-note is-on";
@@ -590,11 +574,37 @@
       calendarNoteEl.textContent = "";
       calendarNoteEl.className = "calendar-note";
     }
-    fitCalendar();
     syncCalendarTarget();
     if (monthOpen) {
       if (!snapshot.configured) closeMonthView();
       else renderMonth();
+    }
+    if (typeof applyLayout === "function") applyLayout();
+  }
+
+  function fillCalendarList(snapshot) {
+    if (!calendarListEl || !snapshot) return;
+    clearNode(calendarListEl);
+    var events = snapshot.events || [];
+    if (!events.length) {
+      var empty = snapshot.loading ? "Loading calendar" : (snapshot.stale ? "" : "Nothing coming up");
+      if (empty) calendarListEl.appendChild(el("p", "calendar-empty", empty));
+      return;
+    }
+    var lastHeading = "";
+    var i;
+    for (i = 0; i < events.length; i++) {
+      var ev = events[i];
+      if (!ev) continue;
+      var heading = ev.heading || "";
+      if (heading !== lastHeading) {
+        calendarListEl.appendChild(el("p", "calendar-day", heading));
+        lastHeading = heading;
+      }
+      var row = el("div", "calendar-row");
+      row.appendChild(el("p", "calendar-time", ev.time || (ev.allDay ? "All day" : "")));
+      row.appendChild(el("p", "calendar-title", ev.title || "Busy"));
+      calendarListEl.appendChild(row);
     }
   }
 
@@ -998,10 +1008,7 @@
 
   function setPhotoPanel(on) {
     if (!photoPanel) return;
-    var messagesOn = dashEl && dashEl.className.indexOf("has-messages") >= 0;
-    var wantDash = on ? "dashboard has-photo" : "dashboard";
-    if (messagesOn) wantDash += " has-messages";
-    var layoutChanged = !dashEl || dashEl.className !== wantDash;
+    photoEnabled = !!on;
     var focused = photoPanel.className.indexOf("is-focused") >= 0;
     var cls = on ? "panel panel-photo is-on" : "panel panel-photo";
     if (on && focused) cls += " is-focused";
@@ -1010,11 +1017,7 @@
     else photoPanel.removeAttribute("tabindex");
     photoPanel.setAttribute("aria-hidden", on ? "false" : "true");
     if (!on) closePhotoSettings();
-    if (dashEl) dashEl.className = wantDash;
-    if (layoutChanged) {
-      if (lastCalendarSnapshot) renderCalendar(lastCalendarSnapshot);
-      else fitCalendar();
-    }
+    applyLayout();
   }
 
   function stopPhotos() {
@@ -1146,7 +1149,7 @@
   var messagesEl = document.getElementById("messages");
   var messageListEl = document.getElementById("message-list");
   var lastMessages = null;
-  var MESSAGE_TTL = 24 * 60 * 60 * 1000;
+  var messageDayKey = "";
 
   function asPlain(value, max) {
     var s = String(value == null ? "" : value);
@@ -1164,6 +1167,63 @@
     var hr = Math.floor(min / 60);
     if (hr < 24) return hr === 1 ? "1 hour ago" : (hr + " hours ago");
     return "1 day ago";
+  }
+
+  function chicagoOffsetMinutes(utcMillis) {
+    var fmt = new Intl.DateTimeFormat("en-US", {
+      timeZone: TIME_ZONE,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit"
+    });
+    var parts = fmt.formatToParts(new Date(utcMillis));
+    var map = {};
+    var i;
+    for (i = 0; i < parts.length; i++) map[parts[i].type] = parts[i].value;
+    var hour = parseInt(map.hour, 10) % 24;
+    var asUtc = Date.UTC(+map.year, +map.month - 1, +map.day, hour, +map.minute, +map.second);
+    return Math.round((asUtc - utcMillis) / 60000);
+  }
+
+  function chicagoMidnightMillis(now) {
+    try {
+      return chicagoMidnightMillisUnchecked(now);
+    } catch (e) {
+      return new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    }
+  }
+
+  function chicagoMidnightMillisUnchecked(now) {
+    var iso = chicagoDateISO(now);
+    var bits = String(iso || "").split("-");
+    var y = parseInt(bits[0], 10);
+    var m = parseInt(bits[1], 10);
+    var d = parseInt(bits[2], 10);
+    if (!y || !m || !d) {
+      return new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    }
+    var guess = Date.UTC(y, m - 1, d, 0, 0, 0);
+    var offset = chicagoOffsetMinutes(guess);
+    var instant = guess - offset * 60000;
+    var offset2 = chicagoOffsetMinutes(instant);
+    if (offset2 !== offset) instant = guess - offset2 * 60000;
+    return instant;
+  }
+
+  function refreshMessagesForDay() {
+    var key = chicagoDateISO(new Date()) || "";
+    if (!key) return;
+    if (!messageDayKey) {
+      messageDayKey = key;
+      return;
+    }
+    if (key === messageDayKey) return;
+    messageDayKey = key;
+    if (lastMessages) renderMessages(lastMessages);
   }
 
   function renderMessages(payload) {
@@ -1184,19 +1244,22 @@
       var sender = asPlain(item.sender, 40);
       var at = Number(item.at);
       if (!text || !isFinite(at)) continue;
-      if (Date.now() - at >= MESSAGE_TTL) continue;
+      if (at < chicagoMidnightMillis(new Date())) continue;
       visible.push({ sender: sender || "Family", text: text, at: at });
     }
-    if (dashEl) {
-      var photoOn = dashEl.className.indexOf("has-photo") >= 0;
-      dashEl.className = photoOn ? "dashboard has-photo" : "dashboard";
-      if (visible.length) dashEl.className += " has-messages";
-    }
-    if (!visible.length) {
+    notesVisible = visible.length > 0;
+    if (!visible.length && !layoutEditing) {
       messagesEl.className = "panel panel-messages";
       messagesEl.setAttribute("aria-hidden", "true");
       clearNode(messageListEl);
-      fitCalendar();
+      applyLayout();
+      return;
+    }
+    if (!visible.length) {
+      messagesEl.className = "panel panel-messages is-on is-placeholder";
+      messagesEl.setAttribute("aria-hidden", "false");
+      clearNode(messageListEl);
+      applyLayout();
       return;
     }
     messagesEl.className = "panel panel-messages is-on";
@@ -1213,7 +1276,7 @@
       block.appendChild(document.createTextNode(" " + note.text));
       messageListEl.appendChild(block);
     }
-    fitCalendar();
+    applyLayout();
   }
 
   function refreshMessages() {
@@ -1232,6 +1295,584 @@
     renderMessages(payload);
   };
 
+  var GRID_COLS = 12;
+  var GRID_ROWS = 8;
+  var GRID_PAD = 20;
+  var GRID_GAP = 16;
+  var CELL_W = 142;
+  var CELL_H = 116;
+  var clockPanel = document.getElementById("clock-panel");
+  var layoutHint = document.getElementById("layout-hint");
+  var layoutBar = document.getElementById("layout-bar");
+  var layoutModeEl = document.getElementById("layout-mode");
+  var layoutHelpEl = document.getElementById("layout-help");
+  var layoutActions = {
+    save: document.getElementById("layout-save"),
+    cancel: document.getElementById("layout-cancel"),
+    reset: document.getElementById("layout-reset"),
+    settings: document.getElementById("layout-settings")
+  };
+  var photoEnabled = false;
+  var notesVisible = false;
+  var layoutEditing = false;
+  var layoutState = null;
+  var boxEls = {
+    photo: photoPanel,
+    notes: messagesEl,
+    clock: clockPanel,
+    weather: document.getElementById("weather"),
+    joke: document.getElementById("joke"),
+    bedtime: document.getElementById("bedtime"),
+    calendar: calendarEl
+  };
+
+  function defaultBoxes() {
+    return {
+      clock: { col: 0, row: 0, cols: 6, rows: 1 },
+      photo: { col: 0, row: 1, cols: 6, rows: 6 },
+      notes: { col: 0, row: 7, cols: 6, rows: 1 },
+      calendar: { col: 6, row: 0, cols: 6, rows: 3 },
+      weather: { col: 6, row: 3, cols: 6, rows: 3 },
+      bedtime: { col: 6, row: 6, cols: 6, rows: 1 },
+      joke: { col: 6, row: 7, cols: 6, rows: 1 }
+    };
+  }
+
+  function cellRect(cell) {
+    return {
+      x: GRID_PAD + cell.col * (CELL_W + GRID_GAP),
+      y: GRID_PAD + cell.row * (CELL_H + GRID_GAP),
+      w: cell.cols * CELL_W + (cell.cols - 1) * GRID_GAP,
+      h: cell.rows * CELL_H + (cell.rows - 1) * GRID_GAP
+    };
+  }
+
+  function sameCell(a, b) {
+    return a && b && a.col === b.col && a.row === b.row && a.cols === b.cols && a.rows === b.rows;
+  }
+
+  function isDefaultBoxes(boxes) {
+    var d = defaultBoxes();
+    return sameCell(boxes.photo, d.photo) && sameCell(boxes.notes, d.notes) &&
+      sameCell(boxes.clock, d.clock) && sameCell(boxes.weather, d.weather) &&
+      sameCell(boxes.joke, d.joke) && sameCell(boxes.bedtime, d.bedtime) &&
+      sameCell(boxes.calendar, d.calendar);
+  }
+
+  function shownBoxes(boxes) {
+    var photo = boxes.photo;
+    var notes = boxes.notes;
+    if (!layoutEditing && !photoEnabled && isDefaultBoxes(boxes)) {
+      if (notesVisible) {
+        return {
+          photo: photo,
+          notes: { col: 0, row: 7, cols: 12, rows: 1 },
+          clock: { col: 0, row: 0, cols: 12, rows: 2 },
+          weather: { col: 0, row: 2, cols: 6, rows: 3 },
+          calendar: { col: 6, row: 2, cols: 6, rows: 3 },
+          bedtime: { col: 0, row: 5, cols: 12, rows: 1 },
+          joke: { col: 0, row: 6, cols: 12, rows: 1 }
+        };
+      }
+      return {
+        photo: photo,
+        notes: notes,
+        clock: { col: 0, row: 0, cols: 12, rows: 2 },
+        weather: { col: 0, row: 2, cols: 6, rows: 3 },
+        calendar: { col: 6, row: 2, cols: 6, rows: 3 },
+        joke: { col: 0, row: 5, cols: 12, rows: 1 },
+        bedtime: { col: 0, row: 6, cols: 12, rows: 2 }
+      };
+    }
+    if (layoutEditing || notesVisible || !photo || !notes) return boxes;
+    if (notes.col === photo.col && notes.cols === photo.cols && notes.row === photo.row + photo.rows) {
+      var copy = {
+        photo: { col: photo.col, row: photo.row, cols: photo.cols, rows: photo.rows + notes.rows },
+        notes: notes,
+        clock: boxes.clock,
+        weather: boxes.weather,
+        joke: boxes.joke,
+        bedtime: boxes.bedtime,
+        calendar: boxes.calendar
+      };
+      return copy;
+    }
+    return boxes;
+  }
+
+  function placeBox(el, rect) {
+    if (!el || !rect) return;
+    el.style.left = rect.x + "px";
+    el.style.top = rect.y + "px";
+    el.style.width = rect.w + "px";
+    el.style.height = rect.h + "px";
+  }
+
+  function setFlag(el, flag, on) {
+    if (!el) return;
+    var parts = String(el.className || "").split(/\s+/);
+    var next = [];
+    var i;
+    for (i = 0; i < parts.length; i++) {
+      if (parts[i] && parts[i] !== flag) next.push(parts[i]);
+    }
+    if (on) next.push(flag);
+    el.className = next.join(" ");
+  }
+
+  function fitClock() {
+    if (!clockPanel || !clockEl) return;
+    var w = clockPanel.clientWidth - 36;
+    var h = clockPanel.clientHeight - 18;
+    if (w < 40 || h < 40) return;
+    var inline = h < 150;
+    setFlag(clockPanel, "is-inline", inline);
+    var clockPx;
+    var datePx;
+    if (inline) {
+      clockPx = Math.round(Math.min(w * 0.2, (h + 10) * 0.78) * 0.88);
+      datePx = Math.round(Math.max(24, clockPx * 0.58));
+    } else {
+      clockPx = Math.round(Math.min(w * 0.36, h * 0.58) * 0.88);
+      datePx = Math.round(Math.min(w * 0.09, h * 0.2, clockPx * 0.5) * 0.88);
+    }
+    if (clockPx < 34) clockPx = 34;
+    if (datePx < 22) datePx = 22;
+    clockPanel.style.display = inline ? "flex" : "block";
+    applyClockType(clockPx, datePx, inline);
+    var guard = 0;
+    while (inline && guard < 16 && clockPanel.scrollWidth > clockPanel.clientWidth + 1 && clockPx > 32) {
+      clockPx -= 2;
+      datePx = Math.max(20, Math.round(clockPx * 0.55));
+      applyClockType(clockPx, datePx, true);
+      guard++;
+    }
+  }
+
+  function applyClockType(clockPx, datePx, inline) {
+    clockEl.style.fontSize = clockPx + "px";
+    if (ampmEl) {
+      ampmEl.style.fontSize = Math.round(clockPx * 0.42) + "px";
+      ampmEl.style.marginTop = inline ? "0" : Math.round(clockPx * 0.12) + "px";
+      ampmEl.style.marginLeft = Math.round(clockPx * 0.08) + "px";
+    }
+    if (dateEl) {
+      dateEl.style.fontSize = datePx + "px";
+      dateEl.style.marginTop = inline ? "0" : "2px";
+      dateEl.style.marginLeft = inline ? "28px" : "0";
+    }
+    var zoneEl = document.getElementById("zone");
+    if (zoneEl) {
+      zoneEl.style.fontSize = Math.max(18, Math.round(datePx * 0.78)) + "px";
+      zoneEl.style.marginTop = inline ? "0" : "2px";
+      zoneEl.style.marginLeft = inline ? "22px" : "0";
+    }
+  }
+
+  function fitWeather() {
+    var panel = boxEls.weather;
+    if (!panel || !bodyEl || !statusEl) return;
+    var w = panel.clientWidth - 24;
+    var h = panel.clientHeight - 24;
+    if (w < 40 || h < 40) return;
+    setFlag(panel, "is-compact", false);
+    setFlag(panel, "is-stack", false);
+    var refW = 980;
+    var refH = 420;
+    if (h < 170) {
+      setFlag(panel, "is-compact", true);
+      refW = 900;
+      refH = 130;
+    } else if (w < h * 1.7) {
+      setFlag(panel, "is-stack", true);
+      refW = 522;
+      refH = 340;
+    }
+    var scale = Math.min(w / refW, h / refH);
+    if (!(scale > 0)) scale = 1;
+    scale = scale * 0.98;
+    var transform = "scale(" + scale + ")";
+    panel.style.setProperty("--weather-scale", String(scale));
+    var headerPx = dashEl ? parseFloat(dashEl.style.getPropertyValue("--header-px")) : 0;
+    var place = panel.querySelector(".weather-current > .kicker");
+    if (place && headerPx > 0 && scale > 0 && !panel.className.match(/is-stack|is-compact/)) {
+      place.style.fontSize = (headerPx / scale) + "px";
+    }
+    bodyEl.style.width = refW + "px";
+    bodyEl.style.height = refH + "px";
+    bodyEl.style.webkitTransform = transform;
+    bodyEl.style.transform = transform;
+    statusEl.style.width = refW + "px";
+    statusEl.style.height = refH + "px";
+    statusEl.style.webkitTransform = transform;
+    statusEl.style.transform = transform;
+  }
+
+  function fitCalendarSize() {
+    if (!calendarEl) return;
+    var w = calendarEl.clientWidth;
+    var h = calendarEl.clientHeight;
+    if (w < 40 || h < 40) return;
+    var px = Math.round(Math.max(25, Math.min(49, w * 0.051, h * 0.114)));
+    calendarEl.style.setProperty("--cal-px", String(px));
+    if (dashEl) {
+      dashEl.style.setProperty("--header-px", String(Math.round(px * 0.85 * 1.13)));
+    }
+    calendarEl.style.setProperty("--cal-line", String(Math.round(px * 1.35)));
+    if (lastCalendarSnapshot && lastCalendarSnapshot.configured && calendarEl.className.indexOf("is-on") >= 0) {
+      fillCalendarList(lastCalendarSnapshot);
+    }
+    fitCalendar();
+  }
+
+  function fitNotes() {
+    if (!messagesEl) return;
+    var w = messagesEl.clientWidth - 32;
+    var h = messagesEl.clientHeight - 16;
+    var count = messageListEl ? messageListEl.children.length : 0;
+    if (count < 1) count = 1;
+    var line = Math.floor(h / count);
+    var maxLine = Math.round(Math.min(96, Math.max(48, w * 0.072)));
+    if (line < 36) line = 36;
+    if (line > maxLine) line = maxLine;
+    var px = Math.max(28, Math.round(line * 0.82));
+    messagesEl.style.setProperty("--note-line", String(line));
+    messagesEl.style.setProperty("--note-px", String(px));
+    var guard = 0;
+    while (guard < 20 && px > 26 && messageListEl && messageListEl.scrollHeight > h + 8) {
+      px -= 2;
+      line = Math.max(36, Math.round(px / 0.82));
+      messagesEl.style.setProperty("--note-line", String(line));
+      messagesEl.style.setProperty("--note-px", String(px));
+      guard++;
+    }
+  }
+
+  function applyLayout() {
+    if (dashEl && dashEl.className.indexOf("is-grid") < 0) {
+      dashEl.className = (dashEl.className ? dashEl.className + " " : "") + "is-grid";
+    }
+    var boxes = shownBoxes((layoutState && layoutState.boxes) || defaultBoxes());
+    var id;
+    for (id in boxEls) {
+      if (!boxEls[id] || !boxes[id]) continue;
+      placeBox(boxEls[id], cellRect(boxes[id]));
+    }
+    var showPhoto = photoEnabled || layoutEditing;
+    if (photoPanel) photoPanel.style.display = showPhoto ? "block" : "none";
+    setFlag(photoPanel, "is-placeholder", layoutEditing && !photoEnabled);
+    var showNotes = notesVisible || layoutEditing;
+    if (messagesEl) messagesEl.style.display = showNotes ? "flex" : "none";
+    var calendarOn = calendarEl && calendarEl.className.indexOf("is-on") >= 0;
+    if (calendarEl) calendarEl.style.display = (calendarOn || layoutEditing) ? "flex" : "none";
+    setFlag(calendarEl, "is-placeholder", layoutEditing && !calendarOn);
+    if (clockPanel) clockPanel.style.display = "block";
+    if (boxEls.weather) boxEls.weather.style.display = "flex";
+    if (boxEls.joke) boxEls.joke.style.display = "flex";
+    if (boxEls.bedtime) boxEls.bedtime.style.display = "flex";
+    var selected = layoutState && layoutState.selected;
+    var grabbed = !!(layoutState && layoutState.grabbed);
+    var resize = grabbed && layoutState.mode === "resize";
+    for (id in boxEls) {
+      setFlag(boxEls[id], "is-selected", layoutEditing && selected === id);
+      setFlag(boxEls[id], "is-grabbed", layoutEditing && grabbed && selected === id);
+      setFlag(boxEls[id], "is-resize", layoutEditing && resize && selected === id);
+    }
+    fitClock();
+    fitCalendarSize();
+    fitWeather();
+    fitNotes();
+    fitJoke();
+    fitBedtime();
+    renderEditor();
+  }
+
+  var jokeSetupEl = document.getElementById("joke-setup");
+  var jokePunchEl = document.getElementById("joke-punch");
+  var jokeKey = "";
+  var jokeRevealed = false;
+  var jokeRevealTimer = null;
+
+  function showTodayJoke() {
+    var now = new Date();
+    var joke = (typeof jokeForDate === "function") ? jokeForDate(now) : null;
+    if (!joke) joke = { q: "Why did the joke cross the screen?", a: "To get to the other side." };
+    var key = now.getFullYear() + "-" + (now.getMonth() + 1) + "-" + now.getDate();
+    if (key === jokeKey) return;
+    jokeKey = key;
+    if (jokeRevealTimer) {
+      window.clearTimeout(jokeRevealTimer);
+      jokeRevealTimer = null;
+    }
+    jokeRevealed = false;
+    if (jokeSetupEl) jokeSetupEl.textContent = joke.q || "";
+    if (jokePunchEl) jokePunchEl.textContent = joke.a || "";
+    if (typeof applyLayout === "function") applyLayout();
+  }
+
+  function fitJoke() {
+    var panel = boxEls.joke;
+    if (!panel || !jokeSetupEl || !jokePunchEl) return;
+    var w = panel.clientWidth - 28;
+    var h = panel.clientHeight - 12;
+    if (w < 40 || h < 28) return;
+    var tiny = h < 150;
+    setFlag(panel, "is-tiny", tiny);
+    var line = Math.floor(h / (tiny ? 2 : 3));
+    var maxLine = Math.round(Math.min(72, Math.max(36, w * 0.06)));
+    if (line < 28) line = 28;
+    if (line > maxLine) line = maxLine;
+    var px = Math.max(22, Math.round(line * 0.86));
+    panel.style.setProperty("--joke-px", String(px));
+    panel.style.setProperty("--joke-line", String(Math.round(px * 1.2)));
+    var guard = 0;
+    while (guard < 18 && px > 20 && panel.scrollHeight > panel.clientHeight + 1) {
+      px -= 1;
+      panel.style.setProperty("--joke-px", String(px));
+      panel.style.setProperty("--joke-line", String(Math.round(px * 1.2)));
+      guard++;
+    }
+    if (tiny) {
+      if (jokeRevealTimer) {
+        window.clearTimeout(jokeRevealTimer);
+        jokeRevealTimer = null;
+      }
+      jokeRevealed = true;
+      setFlag(panel, "is-revealed", true);
+      return;
+    }
+    setFlag(panel, "is-revealed", jokeRevealed);
+    if (!jokeRevealed && !jokeRevealTimer) {
+      jokeRevealTimer = window.setTimeout(function () {
+        jokeRevealTimer = null;
+        jokeRevealed = true;
+        setFlag(panel, "is-revealed", true);
+      }, 4000);
+    }
+  }
+
+  var bedtimeListEl = document.getElementById("bedtime-list");
+  var bedtimeKey = "";
+
+  function renderBedtime(now) {
+    if (!bedtimeListEl || typeof bedtimeRows !== "function") return;
+    var rows;
+    try {
+      rows = bedtimeRows(now || new Date());
+    } catch (e) {
+      return;
+    }
+    if (!rows || !rows.length) return;
+    var key = "";
+    var i;
+    for (i = 0; i < rows.length; i++) {
+      key += rows[i].name + "|" + rows[i].phase + "|" + rows[i].line + "|" + rows[i].time + ";";
+    }
+    if (key === bedtimeKey && bedtimeListEl.children.length === rows.length) {
+      fitBedtime();
+      return;
+    }
+    bedtimeKey = key;
+    while (bedtimeListEl.children.length < rows.length) {
+      var row = document.createElement("div");
+      row.className = "bedtime-row";
+      row.appendChild(document.createElement("p")).className = "bedtime-name";
+      row.appendChild(document.createElement("p")).className = "bedtime-line";
+      row.appendChild(document.createElement("p")).className = "bedtime-clock";
+      bedtimeListEl.appendChild(row);
+    }
+    while (bedtimeListEl.children.length > rows.length) {
+      bedtimeListEl.removeChild(bedtimeListEl.lastChild);
+    }
+    for (i = 0; i < rows.length; i++) {
+      var item = rows[i];
+      var node = bedtimeListEl.children[i];
+      node.className = "bedtime-row is-" + (item.phase || "later");
+      node.children[0].textContent = item.name || "";
+      node.children[1].textContent = item.line || "";
+      node.children[2].textContent = item.time || "";
+    }
+    fitBedtime();
+  }
+
+  function fitBedtime() {
+    var panel = boxEls.bedtime;
+    if (!panel || !bedtimeListEl) return;
+    var count = bedtimeListEl.children.length || 2;
+    var w = panel.clientWidth - 28;
+    var h = panel.clientHeight - 12;
+    if (w < 40 || h < 24) return;
+    var line = Math.floor(h / count);
+    var px = Math.round(Math.min(w * 0.062, line * 0.78));
+    if (px < 22) px = 22;
+    if (px > 64) px = 64;
+    panel.style.setProperty("--bed-px", String(px));
+    var guard = 0;
+    while (guard < 18 && px > 14) {
+      var fit = true;
+      var r;
+      for (r = 0; r < bedtimeListEl.children.length; r++) {
+        var row = bedtimeListEl.children[r];
+        var text = row.children[1];
+        if (text && text.scrollWidth > text.clientWidth + 1) fit = false;
+        if (row.scrollWidth > panel.clientWidth - 20) fit = false;
+      }
+      if (fit) break;
+      px -= 1;
+      panel.style.setProperty("--bed-px", String(px));
+      guard++;
+    }
+  }
+
+  function editorWords() {
+    var names = {
+      photo: "Photo",
+      notes: "Notes",
+      clock: "Clock",
+      weather: "Weather",
+      joke: "Joke",
+      bedtime: "Bedtime",
+      calendar: "Upcoming",
+      save: "Save",
+      cancel: "Cancel",
+      reset: "Reset to default",
+      settings: "Settings"
+    };
+    var selected = (layoutState && layoutState.selected) || "";
+    var name = names[selected] || "Box";
+    if (!layoutState || !layoutState.editing) {
+      return { mode: "", help: "" };
+    }
+    if (layoutState.grabbed && layoutState.mode === "resize") {
+      return {
+        mode: name + " · Resize",
+        help: "Left and right change the width. Up and down change the height. Select switches to Move. Back puts the box down. Play/Pause saves."
+      };
+    }
+    if (layoutState.grabbed) {
+      return {
+        mode: name + " · Move",
+        help: "Arrows slide it. Moving into another box swaps them. Select switches to Resize. Back puts it down. Play/Pause saves."
+      };
+    }
+    if (selected === "save") {
+      return { mode: "Save", help: "Select or Play/Pause saves and leaves. Back saves and leaves." };
+    }
+    if (selected === "cancel") {
+      return { mode: "Cancel", help: "Select throws the changes away. Back saves and leaves." };
+    }
+    if (selected === "reset") {
+      return { mode: "Reset to default", help: "Select puts the boxes back. Then Select on Save keeps it. Back saves and leaves." };
+    }
+    if (selected === "settings") {
+      return { mode: "Settings", help: "Select opens settings. Check for updates is the bottom line. Back saves and leaves." };
+    }
+    return {
+      mode: "Arrange · " + name,
+      help: "Arrows choose a box. Select picks it up. Back or Menu moves to Save. Play/Pause saves and leaves."
+    };
+  }
+
+  var layoutBarAnchor = null;
+
+  function rectsOverlap(a, b) {
+    return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+  }
+
+  function placeEditorBar() {
+    if (!layoutBar) return;
+    if (!layoutEditing) {
+      layoutBar.style.left = "";
+      layoutBar.style.top = "";
+      layoutBar.style.width = "";
+      layoutBar.style.bottom = "";
+      layoutBar.style.marginLeft = "";
+      return;
+    }
+    var barW = 1080;
+    var margin = 24;
+    var anchor = layoutBarAnchor ? cellRect(layoutBarAnchor) : null;
+    var left = margin;
+    var rightSlot = 1920 - barW - margin;
+    if (anchor) {
+      var center = anchor.x + anchor.w / 2;
+      var rightClear = anchor.x + anchor.w <= rightSlot;
+      var leftClear = anchor.x >= barW + margin * 2;
+      if (rightClear && (!leftClear || center < 960)) left = rightSlot;
+      else if (leftClear) left = margin;
+      else left = Math.max(margin, Math.round((1920 - barW) / 2));
+    }
+    layoutBar.style.width = barW + "px";
+    layoutBar.style.marginLeft = "0";
+    layoutBar.style.bottom = "auto";
+    layoutBar.style.left = left + "px";
+    layoutBar.style.top = "80px";
+    var barH = layoutBar.offsetHeight || 190;
+    var top = Math.round((1080 - barH) / 2);
+    if (anchor) {
+      var bar = { x: left, y: top, w: barW, h: barH };
+      if (rectsOverlap(bar, anchor)) {
+        if (anchor.y >= barH + margin + 16) top = anchor.y - barH - margin;
+        else if (anchor.y + anchor.h + barH + margin <= 1064) top = anchor.y + anchor.h + margin;
+      }
+    }
+    if (top < 16) top = 16;
+    if (top + barH > 1064) top = Math.max(16, 1064 - barH);
+    layoutBar.style.top = top + "px";
+  }
+
+  function renderEditor() {
+    layoutEditing = !!(layoutState && layoutState.editing);
+    if (dashEl) setFlag(dashEl, "is-editing", layoutEditing);
+    if (!layoutBar) return;
+    layoutBar.setAttribute("aria-hidden", layoutEditing ? "false" : "true");
+    var words = editorWords();
+    if (layoutModeEl) layoutModeEl.textContent = words.mode;
+    if (layoutHelpEl) layoutHelpEl.textContent = words.help;
+    var selected = layoutState && layoutState.selected;
+    var key;
+    for (key in layoutActions) {
+      setFlag(layoutActions[key], "is-selected", layoutEditing && selected === key);
+    }
+    if (layoutEditing && layoutState && layoutState.boxes && layoutState.boxes[selected]) {
+      layoutBarAnchor = layoutState.boxes[selected];
+    }
+    layoutBar.className = "layout-bar";
+    placeEditorBar();
+  }
+
+  window.onLayoutState = function (state) {
+    layoutState = state || { boxes: defaultBoxes(), editing: false };
+    if (layoutEditing && !(state && state.editing)) {
+      setCalendarFocused(false);
+      setPhotoFocused(false);
+    }
+    layoutEditing = !!(state && state.editing);
+    if (layoutEditing) {
+      setCalendarFocused(false);
+      setPhotoFocused(false);
+      closePhotoSettings();
+      if (monthOpen) closeMonthView();
+    }
+    applyLayout();
+  };
+
+  function pullLayout() {
+    if (!window.FamilyLayout || typeof window.FamilyLayout.getLayout !== "function") {
+      applyLayout();
+      return;
+    }
+    try {
+      window.onLayoutState(JSON.parse(window.FamilyLayout.getLayout()));
+    } catch (e) {
+      applyLayout();
+    }
+  }
+
+  window.showArrangeHint = function () {
+    if (dashEl) setFlag(dashEl, "is-tv", true);
+  };
+
   function start() {
     fitStage();
     updateClock();
@@ -1241,13 +1882,19 @@
     window.onresize = fitStage;
     window.addEventListener("orientationchange", fitStage);
     document.addEventListener("visibilitychange", function () {
-      if (!document.hidden) fetchWeather();
+      if (!document.hidden) {
+        fetchWeather();
+        showTodayJoke();
+      }
     });
     window.addEventListener("online", fetchWeather);
     fetchWeather();
     pullCalendar();
     pullPhotos();
     pullMessages();
+    pullLayout();
+    showTodayJoke();
+    if (window.__tvKeys) window.showArrangeHint();
     window.setInterval(refreshMessages, 30000);
   }
 

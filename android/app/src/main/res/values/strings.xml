@@ -5,4 +5,27 @@
     <string name="error_title">Can\'t open the dashboard</string>
     <string name="error_body">The app will keep trying.</string>
     <string name="retry">Try again</string>
+    <string name="update_ready">Update ready - press OK to install</string>
+    <string name="update_later">Press Back to wait</string>
+    <string name="update_permission_title">Allow this app to install updates</string>
+    <string name="update_permission_body">Fire TV blocks a sideloaded update until Family Dashboard is allowed to install unknown apps. That switch is only for updates of this app. Press Select to open it. On a Fire TV it is Settings, My Fire TV, Developer options, Install unknown apps, Family Dashboard. If Developer options is hidden, open My Fire TV, About, and press Select on the device name seven times. Turn the switch on, come back, and press Select again.</string>
+    <string name="update_permission_manual">The settings page did not open. On the Fire TV, open Settings, My Fire TV, Developer options, Install unknown apps, and turn it on for Family Dashboard. If Developer options is hidden, open My Fire TV, About, and press Select on the device name seven times. Then come back and press Select.</string>
+    <string name="idle_title">When the TV is idle</string>
+    <string name="idle_on">On</string>
+    <string name="idle_off">Off</string>
+    <string name="idle_return_row">Open the dashboard: %1$s</string>
+    <string name="idle_minutes_row">After minutes on the home screen: %1$d</string>
+    <string name="idle_boot_row">Open when the stick starts: %1$s</string>
+    <string name="idle_help">Left and right change the gold line. Up and down move. Select on Check for updates looks now. Back closes. This stays off until you turn it on. It will not open over a video or another app.</string>
+    <string name="update_check_row">Check for updates · %1$s</string>
+    <string name="update_checking">Checking…</string>
+    <string name="update_current">You\'re up to date (version %1$s)</string>
+    <string name="update_downloading">Version %1$s found, downloading…</string>
+    <string name="update_failed">Couldn\'t check, try again</string>
+    <string name="idle_ready">Ready. After you leave this app, the home screen can sit idle and the dashboard will open.</string>
+    <string name="idle_need_both">From a computer: adb shell appops set com.dutchman175.familydashboard SYSTEM_ALERT_WINDOW allow, then the same command with GET_USAGE_STATS instead.</string>
+    <string name="idle_need_usage">From a computer: adb shell appops set com.dutchman175.familydashboard GET_USAGE_STATS allow</string>
+    <string name="idle_need_overlay">From a computer: adb shell appops set com.dutchman175.familydashboard SYSTEM_ALERT_WINDOW allow</string>
+    <string name="idle_note_title">Family Dashboard</string>
+    <string name="idle_note_body">Opens when the TV is idle.</string>
 </resources>

@@ -5,6 +5,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.ZoneId
+import java.time.ZonedDateTime
 
 class MessageTopicTest {
     private val placeholder = "PASTE-THE-TOPIC-NAME"
@@ -55,11 +57,13 @@ class MessageBoardTest {
     private val baseSec = 1_700_000_000L
 
     @Test
-    fun streamUrlUsesSince24hAndNoOtherHost() {
-        assertEquals(
-            "https://ntfy.sh/PASTE-THE-TOPIC-NAME/json?since=24h",
-            MessageBoard.endpoint("PASTE-THE-TOPIC-NAME")
-        )
+    fun streamUrlUsesChicagoMidnightAndNoOtherHost() {
+        val now = chicago(2026, 10, 26, 15, 0)
+        val since = MessageBoard.midnightMillis(now) / 1000L
+        val url = MessageBoard.endpoint("PASTE-THE-TOPIC-NAME", now)
+        assertEquals("https://ntfy.sh/PASTE-THE-TOPIC-NAME/json?since=$since", url)
+        assertFalse(url.contains("24h"))
+        assertTrue(url.startsWith("https://ntfy.sh/"))
     }
 
     @Test
@@ -113,30 +117,82 @@ class MessageBoardTest {
     }
 
     @Test
-    fun dropsMessagesOlderThan24HoursAndKeepsTheNewestThree() {
-        val old = MessageBoard.ingest(
+    fun dropsMessagesFromBeforeChicagoMidnightAndKeepsTheNewestThree() {
+        val evening = chicago(2026, 10, 25, 21, 0)
+        val laterThatNight = chicago(2026, 10, 25, 23, 30)
+        val afterMidnight = chicago(2026, 10, 26, 0, 5)
+        val kept = MessageBoard.ingest(
             emptyList(),
-            message("old", baseSec, "Andy", "stale"),
-            baseSec * 1000 + MessageBoard.TTL_MS
+            message("old", evening / 1000, "Andy", "stale"),
+            evening + 1_000
         )
-        assertTrue(old.messages.isEmpty())
+        assertEquals(1, kept.messages.size)
+        assertEquals(1, MessageBoard.expire(kept.messages, laterThatNight).size)
+        assertTrue(MessageBoard.expire(kept.messages, afterMidnight).isEmpty())
+
+        val ignored = MessageBoard.ingest(
+            emptyList(),
+            message("old", evening / 1000, "Andy", "stale"),
+            afterMidnight
+        )
+        assertTrue(ignored.messages.isEmpty())
+
+        val midnight = MessageBoard.midnightMillis(afterMidnight)
+        val atMidnight = MessageBoard.ingest(
+            emptyList(),
+            message("day", midnight / 1000, "Andy", "new day"),
+            midnight + 1_000
+        )
+        assertEquals("new day", atMidnight.messages[0].text)
 
         var list = emptyList<MessageBoard.Note>()
         for (i in 1..5) {
+            val at = evening + i * 1_000
             list = MessageBoard.ingest(
                 list,
-                message("m$i", baseSec + i, "Andy", "Note $i"),
-                (baseSec + i) * 1000
+                message("m$i", at / 1000, "Andy", "Note $i"),
+                at
             ).messages
         }
-        val aged = MessageBoard.expire(list, (baseSec + 1) * 1000 + MessageBoard.TTL_MS)
-        assertEquals(4, aged.size)
-        assertFalse(aged.any { it.text == "Note 1" })
-
         val arr = JSONObject(MessageBoard.toJson(true, list, false)).getJSONArray("messages")
         assertEquals(3, arr.length())
         assertEquals("Note 5", arr.getJSONObject(0).getString("text"))
         assertEquals("Note 3", arr.getJSONObject(2).getString("text"))
+        assertEquals(MessageBoard.MAX_SHOWN, 3)
+        assertEquals(MessageBoard.MAX_STORED, 40)
+    }
+
+    @Test
+    fun daylightSavingMidnightStillClearsThePreviousEvening() {
+        val springEvening = chicago(2026, 3, 7, 23, 0)
+        val springMorning = chicago(2026, 3, 8, 0, 10)
+        val springNote = MessageBoard.ingest(
+            emptyList(),
+            message("spr", springEvening / 1000, "Cassie", "before spring"),
+            springEvening + 1_000
+        ).messages
+        assertEquals(1, springNote.size)
+        assertTrue(MessageBoard.expire(springNote, springMorning).isEmpty())
+        val springNext = MessageBoard.nextMidnightMillis(springEvening)
+        assertEquals(springMorning - 10 * 60 * 1000, springNext)
+        assertTrue(springNext > springEvening)
+
+        val fallEvening = chicago(2026, 10, 31, 23, 0)
+        val fallMorning = chicago(2026, 11, 1, 0, 30)
+        val fallNote = MessageBoard.ingest(
+            emptyList(),
+            message("fall", fallEvening / 1000, "Cassie", "before fall"),
+            fallEvening + 1_000
+        ).messages
+        assertTrue(MessageBoard.expire(fallNote, fallMorning).isEmpty())
+        val duringFold = chicago(2026, 11, 1, 1, 30)
+        val sameDay = MessageBoard.ingest(
+            emptyList(),
+            message("fold", duringFold / 1000, "Cassie", "still today"),
+            duringFold + 1_000
+        ).messages
+        assertEquals(1, MessageBoard.expire(sameDay, chicago(2026, 11, 1, 23, 0)).size)
+        assertTrue(MessageBoard.expire(sameDay, chicago(2026, 11, 2, 0, 1)).isEmpty())
     }
 
     @Test
@@ -197,9 +253,61 @@ class MessageBoardTest {
     }
 
     @Test
+    fun cfgChangesPhotoSecondsOrResetsLayoutAndStaysOffTheBoard() {
+        val now = baseSec * 1000
+        val seconds = MessageBoard.control(
+            message("c1", baseSec, "Andy", "#cfg seconds=30"),
+            now
+        )
+        assertTrue(seconds is ControlCommand.Parsed.Apply)
+        val applied = seconds as ControlCommand.Parsed.Apply
+        assertEquals(30, applied.seconds)
+        assertFalse(applied.resetLayout)
+        assertEquals("c1", applied.id)
+
+        val both = ControlCommand.interpret("#cfg layout=reset seconds=18")
+        val bothApply = both as ControlCommand.Parsed.Apply
+        assertEquals(18, bothApply.seconds)
+        assertTrue(bothApply.resetLayout)
+
+        assertTrue(ControlCommand.interpret("#cfg seconds=7") is ControlCommand.Parsed.Ignore)
+        assertTrue(ControlCommand.interpret("#cfg topic=secret-name") is ControlCommand.Parsed.Ignore)
+        assertTrue(ControlCommand.interpret("#cfg calendar=https://example.com") is ControlCommand.Parsed.Ignore)
+        assertTrue(ControlCommand.interpret("#cfg seconds=30 seconds=18") is ControlCommand.Parsed.Ignore)
+        assertTrue(ControlCommand.interpret("Soccer at 6") is ControlCommand.Parsed.NotCommand)
+        assertTrue(ControlCommand.interpret("#CFG seconds=30") is ControlCommand.Parsed.NotCommand)
+
+        val shown = MessageBoard.ingest(
+            emptyList(),
+            message("c1", baseSec, "Andy", "#cfg seconds=30"),
+            now
+        )
+        assertTrue(shown.messages.isEmpty())
+        assertFalse(shown.changed)
+        val note = MessageBoard.ingest(
+            emptyList(),
+            message("n1", baseSec, "Andy", "Meet at the #cfg gate"),
+            now
+        )
+        assertEquals("Meet at the #cfg gate", note.messages[0].text)
+
+        val again = ControlIds.remember(listOf("c1"), "c1")
+        assertFalse(again.fresh)
+        val fresh = ControlIds.remember(listOf("c1"), "c2", max = 1)
+        assertTrue(fresh.fresh)
+        assertEquals(listOf("c2"), fresh.ids)
+    }
+
+    @Test
     fun unconfiguredSnapshotIsEmpty() {
         val json = MessageBoard.toJson(false, emptyList(), true)
         assertEquals("{\"configured\":false,\"pulse\":false,\"messages\":[]}", json)
+    }
+
+    private fun chicago(year: Int, month: Int, day: Int, hour: Int, minute: Int): Long {
+        return ZonedDateTime.of(year, month, day, hour, minute, 0, 0, ZoneId.of("America/Chicago"))
+            .toInstant()
+            .toEpochMilli()
     }
 
     private fun message(id: String, time: Long, title: String, body: String): String {

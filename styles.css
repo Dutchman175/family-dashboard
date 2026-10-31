@@ -36,7 +36,7 @@ p {
   bottom: 0;
   left: 0;
   overflow: hidden;
-  background: #0e131b;
+  background: #ffffff;
 }
 
 .dashboard {
@@ -201,13 +201,13 @@ p {
 }
 
 .now-main .wx-icon {
-  width: 118px;
-  height: 118px;
+  width: 84px;
+  height: 84px;
 }
 
 .temp {
   margin-left: 16px;
-  font-size: 118px;
+  font-size: 67px;
   line-height: 0.95;
   font-weight: 700;
   letter-spacing: -2px;
@@ -216,16 +216,16 @@ p {
 }
 
 .condition {
-  margin-top: 10px;
-  font-size: 44px;
+  margin-top: 6px;
+  font-size: 42px;
   line-height: 1.15;
   font-weight: 700;
 }
 
 .detail {
-  margin-top: 8px;
-  font-size: 36px;
-  line-height: 1.25;
+  margin-top: 4px;
+  font-size: 35px;
+  line-height: 1.2;
   color: #f6f3ec;
 }
 
@@ -271,9 +271,9 @@ p {
 }
 
 .slot-name {
-  height: 44px;
-  font-size: 32px;
-  line-height: 44px;
+  height: 42px;
+  font-size: 35px;
+  line-height: 42px;
   font-weight: 700;
 }
 
@@ -291,17 +291,17 @@ p {
 }
 
 .slot-high {
-  height: 54px;
+  height: 50px;
   font-size: 42px;
-  line-height: 54px;
+  line-height: 50px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 
 .slot-low {
-  height: 46px;
-  font-size: 34px;
-  line-height: 46px;
+  height: 42px;
+  font-size: 35px;
+  line-height: 42px;
   font-weight: 400;
   color: #d5e4f7;
   font-variant-numeric: tabular-nums;
@@ -986,4 +986,662 @@ p {
   line-height: 22px;
   font-weight: 700;
   color: #ddd6cb;
+}
+
+/* Arranged boxes sit on a 12 by 8 grid. Padding stays at 0 so the grid uses the full 1920x1080. */
+.dashboard.is-grid {
+  padding: 0;
+}
+
+.dashboard.is-grid .panel-photo,
+.dashboard.is-grid .panel-messages,
+.dashboard.is-grid .panel-clock,
+.dashboard.is-grid .panel-weather,
+.dashboard.is-grid .panel-joke,
+.dashboard.is-grid .panel-bedtime,
+.dashboard.is-grid .panel-calendar {
+  position: absolute;
+  margin: 0;
+  flex: none;
+  max-height: none;
+  min-height: 0;
+  width: auto;
+}
+
+.dashboard.is-grid .panel-clock,
+.dashboard.is-grid .panel-weather,
+.dashboard.is-grid .panel-joke,
+.dashboard.is-grid .panel-bedtime,
+.dashboard.is-grid .panel-calendar,
+.dashboard.is-grid .panel-messages,
+.dashboard.is-grid .panel-photo.is-on {
+  overflow: hidden;
+}
+
+.dashboard.is-grid .panel-messages,
+.dashboard.is-grid .panel-joke,
+.dashboard.is-grid .panel-bedtime,
+.dashboard.is-grid .panel-calendar {
+  flex-direction: column;
+}
+
+.dashboard.is-grid .panel-clock {
+  padding: 8px 18px;
+}
+
+.dashboard.is-grid .panel-clock.is-inline {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
+.dashboard.is-grid .panel-clock.is-inline .clock-row {
+  flex: 0 0 auto;
+  align-items: baseline;
+}
+
+.dashboard.is-grid .panel-clock.is-inline .date,
+.dashboard.is-grid .panel-clock.is-inline .zone {
+  white-space: nowrap;
+}
+
+.dashboard.is-grid .panel-weather {
+  padding: 12px 16px;
+}
+
+.dashboard.is-grid .panel-calendar.is-on {
+  padding: 12px 16px;
+}
+
+.dashboard.is-grid .panel-messages.is-on {
+  padding: 8px 16px;
+  justify-content: center;
+}
+
+.dashboard.is-grid .box-header {
+  font-size: calc(var(--header-px, 36) * 1px);
+  line-height: 1.15;
+  letter-spacing: 0.08em;
+  margin-top: 0;
+  margin-bottom: 8px;
+}
+
+.dashboard.is-grid .panel-calendar .kicker {
+  margin-bottom: calc(var(--cal-px, 26) * 0.35px);
+}
+
+.dashboard.is-grid .calendar-day {
+  font-size: calc(var(--cal-px, 26) * 0.8px);
+  margin-top: calc(var(--cal-px, 26) * 0.35px);
+}
+
+.dashboard.is-grid .calendar-time,
+.dashboard.is-grid .calendar-title {
+  font-size: calc(var(--cal-px, 26) * 1px);
+  line-height: 1.15;
+  height: auto;
+}
+
+.dashboard.is-grid .calendar-row {
+  height: auto;
+  min-height: calc(var(--cal-line, 36) * 1px);
+  align-items: baseline;
+}
+
+.dashboard.is-grid .calendar-title {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.dashboard.is-grid .calendar-time {
+  width: calc(var(--cal-px, 26) * 4.8px);
+  flex-basis: calc(var(--cal-px, 26) * 4.8px);
+}
+
+.dashboard.is-grid .calendar-empty {
+  font-size: calc(var(--cal-px, 26) * 1.15px);
+}
+
+.dashboard.is-grid .calendar-note {
+  font-size: calc(var(--cal-px, 26) * 0.8px);
+}
+
+.dashboard.is-grid .message-line {
+  font-size: calc(var(--note-px, 26) * 1px);
+  line-height: calc(var(--note-line, 34) * 1px);
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.notes-placeholder,
+.photo-placeholder {
+  display: none;
+  font-size: 28px;
+  line-height: 1.2;
+  font-weight: 700;
+  color: #f2c14d;
+}
+
+.panel-photo.is-placeholder .photo-placeholder {
+  display: block;
+  position: absolute;
+  left: 24px;
+  top: 20px;
+  z-index: 2;
+  font-size: calc(var(--note-px, 32) * 1px);
+}
+
+.panel-messages.is-placeholder .notes-placeholder {
+  display: block;
+  font-size: calc(var(--note-px, 28) * 1px);
+}
+
+.panel-messages.is-placeholder .message-list {
+  display: none;
+}
+
+.dashboard.is-editing .panel.is-selected {
+  border-color: #f2c14d;
+  box-shadow: inset 0 0 0 5px #f2c14d;
+  z-index: 2;
+}
+
+.dashboard.is-editing .panel.is-grabbed {
+  z-index: 3;
+  box-shadow: inset 0 0 0 8px #f2c14d;
+}
+
+.dashboard.is-editing .panel.is-resize {
+  border-style: dashed;
+}
+
+.layout-hint {
+  display: none;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 20px;
+  margin: 0;
+  font-size: 18px;
+  line-height: 20px;
+  text-align: center;
+  color: #f6f3ec;
+  background: rgba(14, 19, 27, 0.72);
+  z-index: 5;
+}
+
+.dashboard.is-tv .layout-hint {
+  display: block;
+}
+
+.dashboard.is-editing .layout-hint {
+  display: none;
+}
+
+.layout-bar {
+  display: none;
+  position: absolute;
+  width: 560px;
+  z-index: 6;
+  background: #1e2838;
+  border: 2px solid #f2c14d;
+  border-radius: 28px;
+  padding: 16px 22px 14px;
+  text-align: center;
+}
+
+.dashboard.is-editing .layout-bar {
+  display: block;
+}
+
+.layout-mode {
+  font-size: 42px;
+  line-height: 1.1;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #f2c14d;
+}
+
+.layout-help {
+  margin-top: 6px;
+  font-size: 22px;
+  line-height: 1.3;
+  color: #f6f3ec;
+}
+
+.layout-actions {
+  margin-top: 12px;
+  font-size: 0;
+}
+
+.layout-action {
+  display: inline-block;
+  min-width: 140px;
+  margin: 6px 8px;
+  padding: 8px 18px;
+  border: 2px solid rgba(255, 255, 255, 0.16);
+  border-radius: 16px;
+  font-size: 24px;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.layout-action.is-selected {
+  border-color: #f2c14d;
+  box-shadow: inset 0 0 0 3px #f2c14d;
+  color: #f2c14d;
+}
+
+.panel-weather.is-stack .weather-body.is-on {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.panel-weather.is-stack .weather-current {
+  width: auto;
+  padding-right: 0;
+}
+
+.panel-weather.is-stack .weather-forecast {
+  width: auto;
+  margin-top: 8px;
+  padding-top: 8px;
+  padding-left: 0;
+  border-left: 0;
+  border-top: 2px solid rgba(255, 255, 255, 0.16);
+}
+
+.panel-weather.is-stack .weather-forecast > .kicker,
+.panel-weather.is-stack .updated {
+  display: none;
+}
+
+.panel-weather.is-stack .now-main .wx-icon {
+  width: 64px;
+  height: 64px;
+}
+
+.panel-weather.is-stack .temp {
+  margin-left: 10px;
+  font-size: 68px;
+  letter-spacing: -1px;
+}
+
+.panel-weather.is-stack .condition {
+  margin-top: 0;
+  font-size: 28px;
+}
+
+.panel-weather.is-stack .detail {
+  display: inline-block;
+  margin-top: 2px;
+  margin-right: 14px;
+  font-size: 22px;
+  line-height: 1.2;
+}
+
+.panel-weather.is-stack .forecast-labels {
+  width: 70px;
+  flex: 0 0 70px;
+}
+
+.panel-weather.is-stack .slot-name {
+  height: 28px;
+  font-size: 22px;
+  line-height: 28px;
+}
+
+.panel-weather.is-stack .slot-icon {
+  height: 44px;
+  margin-top: 2px;
+  margin-bottom: 2px;
+}
+
+.panel-weather.is-stack .slot-icon .wx-icon {
+  width: 40px;
+  height: 40px;
+}
+
+.panel-weather.is-stack .slot-high {
+  height: 32px;
+  font-size: 28px;
+  line-height: 32px;
+}
+
+.panel-weather.is-stack .slot-low {
+  height: 28px;
+  font-size: 22px;
+  line-height: 28px;
+}
+
+.panel-weather.is-stack .status-title {
+  font-size: 32px;
+}
+
+.panel-weather.is-stack .status-body {
+  max-width: none;
+  font-size: 22px;
+}
+
+.panel-weather.is-compact .weather-forecast,
+.panel-weather.is-compact .updated,
+.panel-weather.is-compact .weather-current > .kicker {
+  display: none;
+}
+
+.panel-weather.is-compact .weather-body.is-on {
+  flex-direction: row;
+  align-items: center;
+}
+
+.panel-weather.is-compact .weather-current {
+  width: auto;
+  padding-right: 0;
+}
+
+.panel-weather.is-compact .now-main .wx-icon {
+  width: 56px;
+  height: 56px;
+}
+
+.panel-weather.is-compact .temp {
+  margin-left: 10px;
+  font-size: 64px;
+}
+
+.panel-weather.is-compact .condition {
+  margin-top: 0;
+  font-size: 28px;
+}
+
+.panel-weather.is-compact .detail {
+  display: inline-block;
+  margin-top: 0;
+  margin-right: 14px;
+  font-size: 22px;
+}
+
+.panel-joke {
+  display: none;
+  background: #1e2838;
+  border: 2px solid rgba(255, 255, 255, 0.16);
+  border-radius: 28px;
+  padding: 8px 16px;
+  overflow: hidden;
+}
+
+.joke-kicker {
+  margin: 0 0 4px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #f2c14d;
+  font-size: calc(var(--joke-px, 22) * 0.72px);
+  line-height: 1.15;
+}
+
+.panel-joke.is-tiny .joke-kicker {
+  display: none;
+}
+
+.joke-setup,
+.joke-punch {
+  margin: 0;
+  font-weight: 700;
+  font-size: calc(var(--joke-px, 22) * 1px);
+  line-height: calc(var(--joke-line, 28) * 1px);
+  overflow: hidden;
+}
+
+.joke-punch {
+  color: #f2c14d;
+  opacity: 0;
+}
+
+.panel-joke.is-revealed .joke-punch {
+  opacity: 1;
+}
+
+.panel-joke.is-tiny .joke-setup,
+.panel-joke.is-tiny .joke-punch {
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.dashboard.is-grid .panel-joke.is-tiny .joke-setup,
+.dashboard.is-grid .panel-joke.is-tiny .joke-punch {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.panel-bedtime {
+  display: none;
+  background: #1e2838;
+  border: 2px solid rgba(255, 255, 255, 0.16);
+  border-radius: 28px;
+  padding: 8px 16px;
+  overflow: hidden;
+  justify-content: center;
+}
+
+.bedtime-list {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 0;
+  min-width: 0;
+}
+
+.bedtime-row {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  min-width: 0;
+  font-size: calc(var(--bed-px, 28) * 1px);
+  line-height: 1.15;
+  font-weight: 700;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.bedtime-name {
+  flex: 0 0 auto;
+  margin-right: 12px;
+  color: #f6f3ec;
+}
+
+.bedtime-line {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: #f6f3ec;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bedtime-clock {
+  flex: 0 0 auto;
+  margin-left: 12px;
+  color: #ddd6cb;
+  font-variant-numeric: tabular-nums;
+}
+
+.bedtime-clock:empty {
+  display: none;
+}
+
+.bedtime-row.is-later .bedtime-name,
+.bedtime-row.is-later .bedtime-line {
+  color: #9aa3b2;
+}
+
+.bedtime-row.is-soon .bedtime-line,
+.bedtime-row.is-soon .bedtime-clock,
+.bedtime-row.is-now .bedtime-line,
+.bedtime-row.is-now .bedtime-name {
+  color: #f2c14d;
+}
+
+.dashboard.is-grid .weather-body,
+.dashboard.is-grid .weather-status {
+  position: absolute;
+  left: 16px;
+  top: 14px;
+  transform-origin: top left;
+  -webkit-transform-origin: top left;
+}
+
+.dashboard.is-grid .panel-weather:not(.is-stack):not(.is-compact) .weather-body.is-on {
+  align-items: flex-start;
+}
+
+.dashboard.is-grid .panel-weather:not(.is-stack):not(.is-compact) .weather-current > .kicker {
+  position: absolute;
+  left: 0;
+  top: 0;
+  margin: 0;
+  padding-top: 1px;
+  font-size: calc(var(--header-px, 36) / var(--weather-scale, 1) * 1px);
+  line-height: 1.15;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+.dashboard.is-grid .panel-weather:not(.is-stack):not(.is-compact) .weather-current,
+.dashboard.is-grid .panel-weather:not(.is-stack):not(.is-compact) .weather-forecast {
+  padding-top: 68px;
+}
+
+.dashboard.is-grid .panel-weather:not(.is-stack):not(.is-compact) .updated {
+  display: none;
+}
+
+.dashboard.is-grid .panel-weather:not(.is-stack):not(.is-compact) .weather-forecast > .kicker {
+  font-size: 32px;
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+}
+
+html,
+body,
+.stage,
+.dashboard,
+.month {
+  background: #ffffff;
+  background-image: none;
+  color: #000000;
+}
+
+.panel-weather,
+.panel-calendar,
+.panel-messages,
+.panel-joke,
+.panel-bedtime,
+.panel-photo,
+.photo-settings,
+.layout-bar {
+  background: #ffffff;
+  border-color: #d9d9d9;
+}
+
+.weather-forecast {
+  border-left-color: #d9d9d9;
+}
+
+.dashboard.has-photo .weather-forecast,
+.panel-weather.is-stack .weather-forecast {
+  border-top-color: #d9d9d9;
+}
+
+.kicker,
+.box-header,
+.joke-kicker,
+.calendar-day,
+.month-title,
+.photo-placeholder,
+.notes-placeholder,
+.photo-settings .kicker {
+  color: #b08d57;
+}
+
+.clock,
+.ampm,
+.date,
+.zone,
+.temp,
+.condition,
+.detail,
+.updated,
+.weather-note,
+.status-title,
+.status-body,
+.slot-name,
+.slot-high,
+.slot-low,
+.forecast-labels .slot-high,
+.forecast-labels .slot-low,
+.calendar-time,
+.calendar-title,
+.calendar-empty,
+.calendar-note,
+.message-line,
+.message-who,
+.joke-setup,
+.joke-punch,
+.bedtime-name,
+.bedtime-line,
+.bedtime-clock,
+.layout-hint,
+.layout-help,
+.layout-mode,
+.layout-action,
+.month-hint,
+.month-event,
+.month-more,
+.photo-settings-label,
+.photo-settings-value,
+.photo-settings-hint {
+  color: #000000;
+}
+
+.bedtime-row.is-later .bedtime-name,
+.bedtime-row.is-later .bedtime-line,
+.bedtime-row.is-soon .bedtime-line,
+.bedtime-row.is-soon .bedtime-clock,
+.bedtime-row.is-now .bedtime-line,
+.bedtime-row.is-now .bedtime-name {
+  color: #000000;
+}
+
+.layout-action.is-selected,
+.month-nav.is-selected {
+  color: #b08d57;
+  border-color: #b08d57;
+}
+
+.layout-hint {
+  color: #000000;
+  background: transparent;
+}
+
+.dashboard.is-grid .forecast-labels .slot-high,
+.dashboard.is-grid .forecast-labels .slot-low,
+.dashboard.has-photo .forecast-labels .slot-high,
+.dashboard.has-photo .forecast-labels .slot-low {
+  color: #000000;
+}
+
+.dashboard.is-editing .panel.is-selected,
+.dashboard.is-editing .panel.is-grabbed,
+.panel-calendar.is-on:focus,
+.panel-calendar.is-on.is-focused,
+.panel-messages.is-on.is-focused {
+  border-color: #b08d57;
+  box-shadow: inset 0 0 0 5px #b08d57;
 }
